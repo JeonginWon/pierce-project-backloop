@@ -1,26 +1,38 @@
-# 1. 비밀번호 파일 (가장 중요)
+# 1. 비밀번호 및 환경변수 (가장 중요)
 .env
+.env*
+!.env.example
 
-# 2. 파이썬 캐시 파일
+# 2. 파이썬 캐시 및 빌드 파일
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# 3. Django 기본 DB (필수 추가)
+# 3. Django 데이터베이스 (로컬용)
 db.sqlite3
+db.sqlite3-journal
 
-# 4. Django 미디어/정적 파일 (필수 추가)
-# 사용자가 업로드한 파일
+# 4. Django 미디어/정적 파일
 media/
-# collectstatic으로 생성된 파일
 staticfiles/
 
-# 5. 로그 파일 (추천 추가)
+# 5. 로그 파일 (전체 폴더 검색)
 *.log
 
-# 6. IDE 설정 파일
+# 6. IDE 및 에디터 설정
 .vscode/
 .idea/
+*.swp
 
 # 7. OS 관련 파일
 .DS_Store
 Thumbs.db
+
+# 8. 가상환경 (혹시 로컬에 설치했다면)
+venv/
+.venv/
+env/
+
+# 9. Docker 관련 (혹시 로컬에 마운트한 데이터가 있다면)
+pgdata/
