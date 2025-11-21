@@ -1,13 +1,11 @@
-# version: "3.9" <-- 이 줄은 더 이상 필요 없어서 제거했습니다.
-
 services:
   postgres:
     image: ankane/pgvector:latest
     container_name: rag_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}      
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
-      POSTGRES_DB: ${POSTGRES_DB}           
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -25,10 +23,11 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=" # (이 키는 Git에 올라가도 괜찮습니다)
+      AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho="
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
     volumes:
       - ./dags:/opt/airflow/dags
+      - airflow_data:/opt/airflow/data   # ⭐ 토큰 저장소
     entrypoint: /bin/bash
     command:
       - -c
@@ -57,6 +56,7 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: "my_secret_key_1234"
     volumes:
       - ./dags:/opt/airflow/dags
+      - airflow_data:/opt/airflow/data   # ⭐ 토큰 공유
     ports:
       - "8080:8080"
     command: webserver
@@ -77,6 +77,7 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: "my_secret_key_1234"
     volumes:
       - ./dags:/opt/airflow/dags
+      - airflow_data:/opt/airflow/data   # ⭐ 토큰 공유
     command: scheduler
 
   django:
@@ -84,19 +85,21 @@ services:
     container_name: django_web
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - ./django_app:/app 
+      - ./django_app:/app
+      - airflow_data:/opt/airflow/data   # ⭐ Django도 토큰 읽기 가능
     ports:
-      - "8000:8000"      
+      - "8000:8000"
     environment:
       DB_HOST: postgres
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_PORT: 5432
-      PYTHONUNBUFFERED: 1 
+      PYTHONUNBUFFERED: 1
     depends_on:
-      postgres: 
+      postgres:
         condition: service_healthy
 
 volumes:
   pgdata:
+  airflow_data:
