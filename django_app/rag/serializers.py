@@ -1,15 +1,49 @@
 from rest_framework import serializers
-from .models import VectorTest, Member
+from .models import (
+    User, Post, Follow, 
+    StockDailyPrice, StockHolding, TransactionHistory,
+    HistoricalNews, LatestNews
+)
 
-class VectorTestSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = VectorTest
+        model = User
         fields = '__all__'
-        # 👇 이 줄을 추가하면 됩니다!
-        # "embedding 필드는 입력받지 말고, 보여주기만 해라" 라는 뜻입니다.
-        read_only_fields = ['embedding'] 
 
-class MemberSerializer(serializers.ModelSerializer):
+class PostSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Member
+        model = Post
         fields = '__all__'
+
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = '__all__'
+
+class StockDailyPriceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockDailyPrice
+        fields = '__all__'
+
+class StockHoldingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockHolding
+        fields = '__all__'
+
+class TransactionHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransactionHistory
+        fields = '__all__'
+
+# RAG용 뉴스: 벡터값은 입력받지 않음 (Read Only)
+class HistoricalNewsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistoricalNews
+        fields = '__all__'
+        read_only_fields = ('body_embedding_vector',)
+
+class LatestNewsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LatestNews
+        fields = '__all__'
+        read_only_fields = ('body_embedding_vector',)

@@ -3,8 +3,20 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register(r'vectors', views.VectorTestViewSet)
-router.register(r'members', views.MemberViewSet)
+
+# Users
+router.register(r'users', views.UserViewSet)
+router.register(r'posts', views.PostViewSet)
+router.register(r'follows', views.FollowViewSet)
+
+# Stocks & Assets
+router.register(r'stock-prices', views.StockDailyPriceViewSet)
+router.register(r'holdings', views.StockHoldingViewSet)
+router.register(r'transactions', views.TransactionHistoryViewSet)
+
+# News (RAG)
+router.register(r'historical-news', views.HistoricalNewsViewSet)
+router.register(r'latest-news', views.LatestNewsViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

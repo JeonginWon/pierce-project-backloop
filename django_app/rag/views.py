@@ -1,12 +1,20 @@
 from rest_framework import viewsets
-from rest_framework.decorators import action  # 👈 추가됨
-from rest_framework.response import Response  # 👈 추가됨
-from pgvector.django import CosineDistance    # 👈 추가됨 (거리 계산용)
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from pgvector.django import CosineDistance
 
-from .models import VectorTest, Member
-from .serializers import VectorTestSerializer, MemberSerializer
+from .models import (
+    User, Post, Follow, 
+    StockDailyPrice, StockHolding, TransactionHistory,
+    HistoricalNews, LatestNews
+)
+from .serializers import (
+    UserSerializer, PostSerializer, FollowSerializer,
+    StockDailyPriceSerializer, StockHoldingSerializer, TransactionHistorySerializer,
+    HistoricalNewsSerializer, LatestNewsSerializer
+)
 
-# 전역 변수
+# --- AI 모델 지연 로딩 (메모리 최적화) ---
 embedding_model = None
 
 def get_embedding_model():
@@ -21,41 +29,75 @@ def get_embedding_model():
         )
         print("✅ 모델 로딩 완료!")
     return embedding_model
+# --------------------------------------
 
-class VectorTestViewSet(viewsets.ModelViewSet):
-    queryset = VectorTest.objects.all()
-    serializer_class = VectorTestSerializer
+# 1. 일반 CRUD ViewSets
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
-    # 1. 저장할 때 (기존과 동일)
+class PostViewSet(viewsets.ModelViewSet):
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
+
+class FollowViewSet(viewsets.ModelViewSet):
+    queryset = Follow.objects.all()
+    serializer_class = FollowSerializer
+
+class StockDailyPriceViewSet(viewsets.ModelViewSet):
+    queryset = StockDailyPrice.objects.all()
+    serializer_class = StockDailyPriceSerializer
+
+class StockHoldingViewSet(viewsets.ModelViewSet):
+    queryset = StockHolding.objects.all()
+    serializer_class = StockHoldingSerializer
+
+class TransactionHistoryViewSet(viewsets.ModelViewSet):
+    queryset = TransactionHistory.objects.all()
+    serializer_class = TransactionHistorySerializer
+
+# 2. RAG (뉴스) ViewSets - 자동 임베딩 및 검색 기능
+class HistoricalNewsViewSet(viewsets.ModelViewSet):
+    queryset = HistoricalNews.objects.all()
+    serializer_class = HistoricalNewsSerializer
+
+    # 저장 시 자동 임베딩
     def perform_create(self, serializer):
-        text = serializer.validated_data.get('content')
-        model = get_embedding_model()
-        vector = model.embed_query(text)
-        serializer.save(embedding=vector)
+        text = serializer.validated_data.get('body')
+        if text:
+            model = get_embedding_model()
+            vector = model.embed_query(text)
+            serializer.save(body_embedding_vector=vector)
+        else:
+            serializer.save()
 
-    # 2. 검색할 때 (⭐ 새로 추가된 기능!)
-    # 주소: POST /api/vectors/search/
+    # 유사도 검색 기능 (POST /api/historical-news/search/)
     @action(detail=False, methods=['post'])
     def search(self, request):
-        # 사용자가 보낸 질문 받기
         query_text = request.data.get('query')
         if not query_text:
             return Response({"error": "query 필드가 필요합니다."}, status=400)
-
-        # 질문을 벡터로 변환
+        
         model = get_embedding_model()
         query_vector = model.embed_query(query_text)
+        
+        # 코사인 유사도로 상위 5개 검색
+        results = HistoricalNews.objects.annotate(
+            distance=CosineDistance('body_embedding_vector', query_vector)
+        ).order_by('distance')[:5]
 
-        # DB에서 가장 유사한(거리가 가까운) 데이터 3개 찾기
-        # CosineDistance: 코사인 유사도 (작을수록 유사함)
-        results = VectorTest.objects.annotate(
-            distance=CosineDistance('embedding', query_vector)
-        ).order_by('distance')[:3]
-
-        # 결과 반환
         serializer = self.get_serializer(results, many=True)
         return Response(serializer.data)
 
-class MemberViewSet(viewsets.ModelViewSet):
-    queryset = Member.objects.all()
-    serializer_class = MemberSerializer
+class LatestNewsViewSet(viewsets.ModelViewSet):
+    queryset = LatestNews.objects.all()
+    serializer_class = LatestNewsSerializer
+
+    def perform_create(self, serializer):
+        text = serializer.validated_data.get('body')
+        if text:
+            model = get_embedding_model()
+            vector = model.embed_query(text)
+            serializer.save(body_embedding_vector=vector)
+        else:
+            serializer.save()

@@ -2,50 +2,52 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 import requests
-import json
+# import json  <-- json= 파라미터를 쓰면 이 줄은 없어도 됩니다.
 
-# 1. Django API 주소 (Docker 내부 통신용)
-# 주의: localhost가 아니라 docker-compose의 'container_name'을 써야 합니다!
-DJANGO_API_URL = "http://django:8000/api/vectors/"
+# 주소 확인 (서비스 이름: django)
+DJANGO_API_URL = "http://django:8000/api/historical-news/"
 
-def send_data_to_django(**context):
-    # 예시 데이터 (나중에는 여기서 크롤링을 하거나 파일을 읽으면 됩니다)
-    sample_data = [
-        "Airflow는 워크플로우 자동화 도구입니다.",
-        "RAG 시스템은 검색과 생성을 결합한 기술입니다.",
-        "Docker Compose를 쓰면 컨테이너 관리가 쉽습니다."
+def send_news_to_django(**context):
+    sample_news = [
+        {
+            "title": "삼성전자, 3분기 실적 발표",
+            "body": "삼성전자가 3분기 매출 70조원을 기록하며...",
+            "news_collection_date": "2024-10-01",
+            "impacted_ticker": "005930"
+        },
+        {
+            "title": "비트코인 급등, 1억 돌파하나",
+            "body": "가상화폐 시장이 다시 뜨거워지고 있다...",
+            "news_collection_date": "2024-11-20",
+            "impacted_ticker": "BTC"
+        }
     ]
 
-    headers = {'Content-Type': 'application/json'}
+    # headers 설정도 필요 없습니다. requests가 알아서 합니다.
 
-    for text in sample_data:
-        payload = {"content": text}
-        
+    for news in sample_news:
         try:
-            # Django에게 POST 요청 보내기
-            response = requests.post(DJANGO_API_URL, data=json.dumps(payload), headers=headers)
+            # 👇 [핵심 수정] data=... 대신 json=news 로 변경!
+            response = requests.post(DJANGO_API_URL, json=news)
             
             if response.status_code == 201:
-                print(f"✅ 성공: {text}")
+                print(f"✅ 저장 성공: {news['title']}")
             else:
-                print(f"❌ 실패: {text} - 이유: {response.text}")
+                # 에러 메시지를 더 자세히 보기 위해 response.json() 출력
+                print(f"❌ 저장 실패: {news['title']} - {response.text}")
                 
         except Exception as e:
             print(f"💥 에러 발생: {e}")
 
-# 2. DAG 정의
 with DAG(
-    dag_id='rag_data_ingestion',  # Airflow UI에 뜰 이름
+    dag_id='news_ingestion_v2',
     start_date=datetime(2024, 1, 1),
-    schedule_interval=None,       # None: 수동 실행 (버튼 눌러야 실행)
+    schedule_interval=None,
     catchup=False,
-    tags=['RAG', 'Django']
+    tags=['RAG', 'News']
 ) as dag:
 
-    # 3. Task 정의
     ingest_task = PythonOperator(
-        task_id='send_text_to_django',
-        python_callable=send_data_to_django
+        task_id='send_news',
+        python_callable=send_news_to_django
     )
-
-    ingest_task
