@@ -6,7 +6,6 @@ from pgvector.django import VectorField
 # ==========================================
 
 class User(models.Model):
-    # ID는 Django가 자동으로 'id' 필드(Serial PK)를 생성합니다.
     nickname = models.CharField(max_length=255)
     password = models.CharField(max_length=255)
     profile_image_url = models.CharField(max_length=255, null=True, blank=True)
@@ -30,12 +29,10 @@ class Follow(models.Model):
         ]
 
 # ==========================================
-# 2. Stocks (주식 데이터)
+# 2. Stocks
 # ==========================================
 
 class StockDailyPrice(models.Model):
-    # Ticker(Symbol)는 중복될 수 있으므로(날짜별로), PK가 될 수 없습니다.
-    # 대신 db_index=True를 걸어 검색 속도를 최적화합니다.
     symbol = models.CharField(max_length=12, db_index=True) 
     trade_date = models.DateField()
     open = models.DecimalField(max_digits=10, decimal_places=2, null=True)
@@ -46,18 +43,17 @@ class StockDailyPrice(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # (종목, 날짜) 쌍은 유일해야 함
         constraints = [
             models.UniqueConstraint(fields=['symbol', 'trade_date'], name='unique_stock_price')
         ]
 
 # ==========================================
-# 3. Portfolio & Transactions (자산 및 거래)
+# 3. Portfolio & Transactions
 # ==========================================
 
 class StockHolding(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='holdings')
-    ticker = models.CharField(max_length=12, db_index=True) # StockDailyPrice.symbol과 논리적 연결
+    ticker = models.CharField(max_length=12, db_index=True)
     average_buy_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.IntegerField()
     last_updated = models.DateTimeField(auto_now=True)
@@ -66,25 +62,31 @@ class TransactionHistory(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transactions')
     ticker = models.CharField(max_length=12, db_index=True)
     transaction_datetime = models.DateTimeField()
-    transaction_type = models.CharField(max_length=10) # BUY / SELL
+    transaction_type = models.CharField(max_length=10)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.IntegerField()
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
 # ==========================================
-# 4. News (RAG용 벡터 데이터)
+# 4. News (RAG) - URL 필드 추가
 # ==========================================
 
 class HistoricalNews(models.Model):
     news_collection_date = models.DateField()
     title = models.CharField(max_length=255)
     body = models.TextField()
-    body_embedding_vector = VectorField(dimensions=384) # MiniLM 모델 기준
+    # 👇 [추가] URL 필드 (긴 링크 대비 2048자)
+    url = models.URLField(max_length=2048, null=True, blank=True) 
+    
+    body_embedding_vector = VectorField(dimensions=384)
     impacted_ticker = models.CharField(max_length=12, null=True, db_index=True)
 
 class LatestNews(models.Model):
     news_collection_date = models.DateField()
     title = models.CharField(max_length=255)
     body = models.TextField()
+    # 👇 [추가] URL 필드
+    url = models.URLField(max_length=2048, null=True, blank=True)
+    
     body_embedding_vector = VectorField(dimensions=384)
     views = models.IntegerField(default=0)
