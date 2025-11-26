@@ -5,32 +5,42 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: ${POSTGRES_DB} # Django용 DB가 기본 생성됨
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # 👇 [수정] DB 초기화 스크립트 마운트 (airflow_db 생성용)
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     ports:
       - "5432:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       interval: 5s
       retries: 5
+    networks:
+      - app_network
 
   airflow-init:
-    image: apache/airflow:2.10.0
+    # 👇 [수정] 이미지 직접 지정 대신 빌드 사용
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # 👇 [확인] DB 이름을 airflow_db로 명확히 지정
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
       AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho="
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
     volumes:
       - ./dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow/data   # ⭐ 토큰 저장소
+      - ./shared:/opt/airflow/shared
+      - airflow_data:/opt/airflow/data
     entrypoint: /bin/bash
     command:
       - -c
+      # 👇 [수정] pip install 제거 (이미지에 포함됨), DB 마이그레이션만 수행
       - |
         airflow db migrate
         airflow users create \
@@ -40,9 +50,14 @@ services:
           --role Admin \
           --email admin@example.com \
           --password admin || true
+    networks:
+      - app_network
 
   airflow-webserver:
-    image: apache/airflow:2.10.0
+    # 👇 [수정] 빌드 사용 (라이브러리 포함된 이미지)
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     container_name: airflow_webserver
     restart: always
     depends_on:
@@ -50,20 +65,32 @@ services:
         condition: service_completed_successfully
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
       AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho="
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__WEBSERVER__SECRET_KEY: "my_secret_key_1234"
+      DJANGO_DB_HOST: postgres
+      DJANGO_DB_NAME: ${POSTGRES_DB}
+      DJANGO_DB_USER: ${POSTGRES_USER}
+      DJANGO_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 👇 [추가] shared 폴더를 파이썬 경로에 추가 (공유 코드 import 가능하게)
+      PYTHONPATH: "/opt/airflow/shared:${PYTHONPATH}"
     volumes:
       - ./dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow/data   # ⭐ 토큰 공유
+      - ./shared:/opt/airflow/shared
+      - airflow_data:/opt/airflow/data
     ports:
       - "8080:8080"
     command: webserver
+    networks:
+      - app_network
 
   airflow-scheduler:
     hostname: airflow-scheduler
-    image: apache/airflow:2.10.0
+    # 👇 [수정] 빌드 사용
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
     container_name: airflow_scheduler
     restart: always
     depends_on:
@@ -71,14 +98,26 @@ services:
         condition: service_completed_successfully
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
       AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho="
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__WEBSERVER__SECRET_KEY: "my_secret_key_1234"
+      DJANGO_DB_HOST: postgres
+      DJANGO_DB_NAME: ${POSTGRES_DB}
+      DJANGO_DB_USER: ${POSTGRES_USER}
+      DJANGO_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MOJITO_API_KEY: ${MOJITO_API_KEY}
+      MOJITO_API_SECRET: ${MOJITO_API_SECRET}
+      MOJITO_ACC_NO: ${MOJITO_ACC_NO}
+      # 👇 [추가] PYTHONPATH 추가
+      PYTHONPATH: "/opt/airflow/shared:${PYTHONPATH}"
     volumes:
       - ./dags:/opt/airflow/dags
-      - airflow_data:/opt/airflow/data   # ⭐ 토큰 공유
+      - ./shared:/opt/airflow/shared
+      - airflow_data:/opt/airflow/data
     command: scheduler
+    networks:
+      - app_network
 
   django:
     build: ./django_app
@@ -86,7 +125,8 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./django_app:/app
-      - airflow_data:/opt/airflow/data   # ⭐ Django도 토큰 읽기 가능
+      - ./shared:/app/shared
+      - airflow_data:/opt/airflow/data
     ports:
       - "8000:8000"
     environment:
@@ -96,10 +136,20 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_PORT: 5432
       PYTHONUNBUFFERED: 1
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DEBUG: ${DEBUG}
+      # 👇 [추가] Django에서도 shared import 하려면 필요할 수 있음
+      PYTHONPATH: "/app/shared:${PYTHONPATH}"
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - app_network
 
 volumes:
   pgdata:
   airflow_data:
+
+networks:
+  app_network:
+    driver: bridge

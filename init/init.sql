@@ -1,5 +1,6 @@
 -- init/init.sql
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE DATABASE airflow_db;
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
