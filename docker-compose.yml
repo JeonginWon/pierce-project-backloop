@@ -137,6 +137,8 @@ services:
       DB_PORT: 5432
       PYTHONUNBUFFERED: 1
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_BASE: ${OPENAI_API_BASE}
       DEBUG: ${DEBUG}
       # 👇 [추가] Django에서도 shared import 하려면 필요할 수 있음
       PYTHONPATH: "/app/shared:${PYTHONPATH}"

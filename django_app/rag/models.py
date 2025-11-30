@@ -75,18 +75,21 @@ class HistoricalNews(models.Model):
     news_collection_date = models.DateField()
     title = models.CharField(max_length=255)
     body = models.TextField()
-    # 👇 [추가] URL 필드 (긴 링크 대비 2048자)
-    url = models.URLField(max_length=2048, null=True, blank=True) 
+    url = models.URLField(max_length=2048, null=True, blank=True)
     
-    body_embedding_vector = VectorField(dimensions=384)
+    # 👇 [변경] OpenAI text-embedding-3-small 기준 1536차원
+    body_embedding_vector = VectorField(dimensions=1536) 
+    
     impacted_ticker = models.CharField(max_length=12, null=True, db_index=True)
 
 class LatestNews(models.Model):
     news_collection_date = models.DateField()
     title = models.CharField(max_length=255)
     body = models.TextField()
-    # 👇 [추가] URL 필드
     url = models.URLField(max_length=2048, null=True, blank=True)
     
-    body_embedding_vector = VectorField(dimensions=384)
+    # OpenAI용 1536 차원
+    body_embedding_vector = VectorField(dimensions=1536)
+    
+    # 👇 [이 줄이 꼭 있어야 합니다!]
     views = models.IntegerField(default=0)
