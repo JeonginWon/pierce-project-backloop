@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from pgvector.django import CosineDistance
 from django.conf import settings
 import openai
+from django.shortcuts import render
 
 from .models import (
     User, Post, Follow, 
@@ -130,3 +131,27 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
                 serializer.save()
         else:
             serializer.save()
+            
+    # 👇 [추가] 이 검색 기능을 LatestNews에도 똑같이 넣어줘야 합니다!
+    @action(detail=False, methods=['post'])
+    def search(self, request):
+        query_text = request.data.get('query')
+        if not query_text:
+            return Response({"error": "query 필드가 필요합니다."}, status=400)
+        
+        try:
+            # 질문 임베딩 생성
+            query_vector = get_embedding(query_text)
+            
+            # LatestNews 테이블에서 검색
+            results = LatestNews.objects.annotate(
+                distance=CosineDistance('body_embedding_vector', query_vector)
+            ).order_by('distance')[:5]
+
+            serializer = self.get_serializer(results, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+            
+def main_view(request):
+    return render(request, 'rag/main.html')

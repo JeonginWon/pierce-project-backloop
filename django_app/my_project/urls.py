@@ -16,8 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rag import views 
 
 urlpatterns = [
+    # 1. 관리자 페이지
     path('admin/', admin.site.urls),
     path('api/', include('rag.urls')),
+    path('', views.main_view, name='main'),
 ]

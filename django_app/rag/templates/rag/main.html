@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock & News Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; }
+        .news-card { 
+            transition: transform 0.2s, box-shadow 0.2s; 
+            border: none; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .news-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .search-area { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 60px 0; 
+            margin-bottom: 40px; 
+            color: white;
+        }
+        .card-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            height: 4.5em; /* 3줄 높이 고정 */
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">📈 Smart Finance</a>
+        </div>
+    </nav>
+
+    <section class="search-area text-center">
+        <div class="container">
+            <h2 class="mb-2 fw-bold">AI 기반 금융 뉴스 검색</h2>
+            <p class="mb-4 opacity-75">RAG 기술을 활용하여 가장 연관성 높은 뉴스를 찾아드립니다.</p>
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="input-group input-group-lg">
+                        <input type="text" id="searchInput" class="form-control" placeholder="예: 삼성전자 반도체 전망은?" onkeyup="enterKey(event)">
+                        <button class="btn btn-warning fw-bold" onclick="searchNews()">AI 검색 🔍</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container pb-5">
+        
+        <div id="search-result-section" class="mb-5" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                <h4 class="fw-bold text-primary">🔍 AI 검색 결과</h4>
+                <button class="btn btn-sm btn-outline-secondary" onclick="closeSearch()">닫기</button>
+            </div>
+            <div id="search-result-container" class="row">
+                </div>
+        </div>
+
+        <h4 class="mb-3 fw-bold border-bottom pb-2">📰 오늘의 최신 뉴스 (Latest News)</h4>
+        <div id="latest-news-container" class="row g-4">
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">최신 뉴스를 불러오는 중입니다...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 페이지 로드 시 최신 뉴스 가져오기
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchLatestNews();
+        });
+
+        // 엔터키 입력 시 검색 실행
+        function enterKey(e) {
+            if (e.keyCode == 13) {
+                searchNews();
+            }
+        }
+
+        // 검색 결과 닫기
+        function closeSearch() {
+            document.getElementById('search-result-section').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+        }
+
+        // [API 1] 최신 뉴스 가져오기 (GET)
+        async function fetchLatestNews() {
+            try {
+                const response = await fetch('/api/latest-news/');
+                const data = await response.json();
+                
+                const container = document.getElementById('latest-news-container');
+                container.innerHTML = '';
+
+                // 데이터 체크
+                const newsList = data.results ? data.results : data;
+
+                if(newsList.length === 0) {
+                   container.innerHTML = '<div class="col-12 text-center py-5"><p class="text-muted">등록된 뉴스가 없습니다.</p></div>'; 
+                   return;
+                }
+                
+                newsList.forEach(news => {
+                    // 날짜 포맷팅 (YYYY-MM-DD)
+                    let dateStr = news.news_collection_date || '날짜 미상';
+                    
+                    const html = `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card news-card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title text-truncate">
+                                        <a href="${news.url || '#'}" target="_blank" class="text-decoration-none text-dark">${news.title}</a>
+                                    </h5>
+                                    <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem;">${dateStr}</h6>
+                                    <p class="card-text text-secondary small">
+                                        ${(news.body || '').substring(0, 100)}...
+                                    </p>
+                                </div>
+                                <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">조회수 ${news.views}</small>
+                                    ${news.url ? `<a href="${news.url}" target="_blank" class="btn btn-sm btn-outline-primary">원문 보기 &rarr;</a>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += html;
+                });
+
+            } catch (error) {
+                console.error('뉴스 로딩 실패:', error);
+                document.getElementById('latest-news-container').innerHTML = 
+                    '<div class="col-12 text-center text-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        }
+
+        // [API 2] AI 검색 실행 (POST)
+        async function searchNews() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) return alert("검색어를 입력하세요!");
+
+            const resultSection = document.getElementById('search-result-section');
+            const container = document.getElementById('search-result-container');
+            
+            resultSection.style.display = 'block';
+            container.innerHTML = '<div class="col-12 text-center py-4"><span class="spinner-border text-warning"></span><p class="mt-2">AI가 관련 뉴스를 분석 중입니다...</p></div>';
+
+            try {
+                // 👇 [중요] 주소가 latest-news/search/ 로 변경됨!
+                const response = await fetch('/api/latest-news/search/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') 
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                container.innerHTML = '';
+
+                if (data.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted">검색 결과가 없습니다.</div>';
+                    return;
+                }
+
+                data.forEach(news => {
+                    // 유사도 점수 (낮을수록 좋음 -> 퍼센트로 변환 예시)
+                    // Cosine Distance는 0~2 사이. 보통 0에 가까울수록 유사함.
+                    // 1 - distance를 해서 유사도 점수(Similarity)로 표현
+                    const similarity = news.distance ? ((1 - news.distance) * 100).toFixed(1) : 0;
+                    
+                    const html = `
+                        <div class="col-12 mb-3">
+                            <div class="list-group-item list-group-item-action border-start border-4 border-warning shadow-sm">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <h5 class="mb-1 fw-bold text-dark">
+                                        <a href="${news.url || '#'}" target="_blank" class="text-decoration-none text-dark">${news.title}</a>
+                                    </h5>
+                                    <span class="badge bg-warning text-dark">유사도 ${similarity}%</span>
+                                </div>
+                                <p class="mb-1 mt-2 text-secondary">${(news.body || '').substring(0, 200)}...</p>
+                                <small class="text-muted">${news.news_collection_date || ''}</small>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += html;
+                });
+
+            } catch (error) {
+                console.error('검색 실패:', error);
+                container.innerHTML = `<div class="col-12 text-center text-danger">검색 중 오류가 발생했습니다.<br>(${error.message})</div>`;
+            }
+        }
+
+        // CSRF Token 가져오기
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>
