@@ -76,11 +76,10 @@ class HistoricalNews(models.Model):
     title = models.CharField(max_length=255)
     body = models.TextField()
     url = models.URLField(max_length=2048, null=True, blank=True)
+    body_embedding_vector = VectorField(dimensions=1536, null=True, blank=True)
     
-    # 👇 [변경] OpenAI text-embedding-3-small 기준 1536차원
-    body_embedding_vector = VectorField(dimensions=1536) 
-    
-    impacted_ticker = models.CharField(max_length=12, null=True, db_index=True)
+    # 👇 [수정] max_length를 500으로 늘려주세요! (기존 12 -> 500)
+    impacted_ticker = models.CharField(max_length=500, null=True, db_index=True)
 
 class LatestNews(models.Model):
     news_collection_date = models.DateField()
