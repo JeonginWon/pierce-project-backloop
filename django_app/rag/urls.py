@@ -18,6 +18,11 @@ router.register(r'transactions', views.TransactionHistoryViewSet)
 router.register(r'historical-news', views.HistoricalNewsViewSet)
 router.register(r'latest-news', views.LatestNewsViewSet)
 
+# MyPage 
+router.register(r'watchlist', views.WatchlistItemViewSet)
+router.register(r'strategy-notes', views.StrategyNoteViewSet)
+
+
 urlpatterns = [
     path('', include(router.urls)),
 ]

@@ -13,18 +13,23 @@ from pgvector.django import CosineDistance
 
 import openai
 
+from django.db.models import Sum
+from decimal import Decimal, InvalidOperation
+
 from .models import (
     User, Post, Follow,
     StockDailyPrice, StockHolding, TransactionHistory,
     HistoricalNews, LatestNews,
     Comment, PostLike,
+    WatchlistItem, StrategyNote, 
 )
 from .serializers import (
     UserSerializer, UserReadSerializer, UserLoginSerializer,
     PostWriteSerializer, PostReadSerializer, CommentSerializer,
     FollowSerializer,
     StockDailyPriceSerializer, StockHoldingSerializer, TransactionHistorySerializer,
-    HistoricalNewsSerializer, LatestNewsSerializer
+    HistoricalNewsSerializer, LatestNewsSerializer,
+    WatchlistItemSerializer, StrategyNoteSerializer, 
 )
 
 # --- OpenAI 클라이언트 지연 로딩 ---
@@ -160,6 +165,217 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserReadSerializer(user)
         return Response(serializer.data)
 
+    # GET /api/users/me/portfolio-summary/
+    # ---------------------------
+    @action(detail=False, methods=["get"])
+    def portfolio_summary(self, request):
+        user = get_current_user(request)
+
+        holdings = StockHolding.objects.filter(user=user)
+        if not holdings.exists():
+            # 보유 종목 없으면 0으로 채워서 반환
+            data = {
+                "user": UserReadSerializer(user).data,
+                "portfolio": {
+                    "total_invested": 0,
+                    "total_eval": 0,
+                    "total_profit": 0,
+                    "total_return_rate": 0.0,
+                },
+                "holdings_count": 0,
+            }
+            return Response(data)
+
+        tickers = [h.ticker for h in holdings]
+        latest_prices_qs = (
+            StockDailyPrice.objects
+            .filter(symbol__in=tickers)
+            .order_by("symbol", "-trade_date")
+        )
+
+        # 각 종목별 최신 종가만 추리기
+        latest_price_map = {}
+        for row in latest_prices_qs:
+            if row.symbol not in latest_price_map:
+                latest_price_map[row.symbol] = row
+
+        total_invested = Decimal("0")
+        total_eval = Decimal("0")
+
+        for h in holdings:
+            invested = (h.average_buy_price * h.quantity)
+            total_invested += invested
+
+            price_obj = latest_price_map.get(h.ticker)
+            if price_obj and price_obj.close is not None:
+                current_price = price_obj.close
+            else:
+                # 가격 정보 없으면 매수가로 평가
+                current_price = h.average_buy_price
+
+            eval_amount = current_price * h.quantity
+            total_eval += eval_amount
+
+        total_profit = total_eval - total_invested
+        try:
+            if total_invested > 0:
+                total_return_rate = (total_profit / total_invested) * Decimal("100")
+            else:
+                total_return_rate = Decimal("0")
+        except InvalidOperation:
+            total_return_rate = Decimal("0")
+
+        data = {
+            "user": UserReadSerializer(user).data,
+            "portfolio": {
+                "total_invested": float(total_invested),
+                "total_eval": float(total_eval),
+                "total_profit": float(total_profit),
+                "total_return_rate": float(round(total_return_rate, 2)),
+            },
+            "holdings_count": holdings.count(),
+        }
+        return Response(data)
+
+    # ---------------------------
+    # 마이페이지: 보유 종목 상세
+    # GET /api/users/me/holdings/
+    # ---------------------------
+    @action(detail=False, methods=["get"])
+    def holdings(self, request):
+        user = get_current_user(request)
+        holdings = StockHolding.objects.filter(user=user)
+
+        tickers = [h.ticker for h in holdings]
+        latest_prices_qs = (
+            StockDailyPrice.objects
+            .filter(symbol__in=tickers)
+            .order_by("symbol", "-trade_date")
+        )
+
+        latest_price_map = {}
+        for row in latest_prices_qs:
+            if row.symbol not in latest_price_map:
+                latest_price_map[row.symbol] = row
+
+        result = []
+        for h in holdings:
+            invested_amount = h.average_buy_price * h.quantity
+            price_obj = latest_price_map.get(h.ticker)
+            if price_obj and price_obj.close is not None:
+                current_price = price_obj.close
+            else:
+                current_price = h.average_buy_price
+
+            eval_amount = current_price * h.quantity
+            profit = eval_amount - invested_amount
+            return_rate = float((profit / invested_amount) * 100) if invested_amount > 0 else 0.0
+
+            result.append({
+                "ticker": h.ticker,
+                "quantity": h.quantity,
+                "average_buy_price": float(h.average_buy_price),
+                "invested_amount": float(invested_amount),
+                "current_price": float(current_price),
+                "eval_amount": float(eval_amount),
+                "profit": float(profit),
+                "return_rate": round(return_rate, 2),
+                "last_updated": h.last_updated,
+            })
+
+        return Response(result)
+
+    # ---------------------------
+    # 마이페이지: 내가 쓴 글
+    # GET /api/users/me/posts/
+    # ---------------------------
+    @action(detail=False, methods=["get"])
+    def posts(self, request):
+        user = get_current_user(request)
+        posts = (
+            Post.objects.filter(author=user)
+            .select_related("author")
+            .annotate(
+                comment_count=Count("comments"),
+                like_count=Count("likes"),
+            )
+            .order_by("-created_at")
+        )
+        serializer = PostReadSerializer(posts, many=True, context={"request": request})
+        return Response(serializer.data)
+
+    # ---------------------------
+    # 마이페이지: 좋아요 누른 글
+    # GET /api/users/me/liked-posts/
+    # ---------------------------
+    @action(detail=False, methods=["get"], url_path="liked-posts")
+    def liked_posts(self, request):
+        user = get_current_user(request)
+        posts = (
+            Post.objects.filter(likes__user=user)
+            .select_related("author")
+            .annotate(
+                comment_count=Count("comments"),
+                like_count=Count("likes"),
+            )
+            .order_by("-created_at")
+            .distinct()
+        )
+        serializer = PostReadSerializer(posts, many=True, context={"request": request})
+        return Response(serializer.data)
+
+    # ---------------------------
+    # 마이페이지: 팔로워 / 팔로잉
+    # GET /api/users/me/followers/
+    # GET /api/users/me/followings/
+    # ---------------------------
+    @action(detail=False, methods=["get"])
+    def followers(self, request):
+        user = get_current_user(request)
+        follower_rels = Follow.objects.filter(following_user=user).select_related("follower_user")
+        users = [rel.follower_user for rel in follower_rels]
+        serializer = UserReadSerializer(users, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"])
+    def followings(self, request):
+        user = get_current_user(request)
+        following_rels = Follow.objects.filter(follower_user=user).select_related("following_user")
+        users = [rel.following_user for rel in following_rels]
+        serializer = UserReadSerializer(users, many=True)
+        return Response(serializer.data)
+
+    # ---------------------------
+    # 마이페이지: 거래 내역 요약
+    # GET /api/users/me/transactions/
+    # ?limit=20
+    # ---------------------------
+    @action(detail=False, methods=["get"])
+    def transactions(self, request):
+        user = get_current_user(request)
+        limit = request.query_params.get("limit")
+        qs = TransactionHistory.objects.filter(user=user).order_by("-transaction_datetime")
+        if limit:
+            try:
+                limit = int(limit)
+                qs = qs[:limit]
+            except ValueError:
+                pass
+
+        data = []
+        for t in qs:
+            data.append({
+                "ticker": t.ticker,
+                "transaction_datetime": t.transaction_datetime,
+                "transaction_type": t.transaction_type,
+                "price": float(t.price),
+                "quantity": t.quantity,
+                "fee": float(t.fee),
+            })
+        return Response(data)
+
+
+
 
 # ---------------------------------------------
 class PostViewSet(viewsets.ModelViewSet):
@@ -181,15 +397,19 @@ class PostViewSet(viewsets.ModelViewSet):
             like_count=Count("likes"),
         )
         return qs
-
+    
     def _get_current_user(self, request):
-        user_id = request.session.get("user_id")
-        if not user_id:
-            raise PermissionDenied("로그인이 필요합니다.")
-        try:
-            return User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            raise PermissionDenied("유저 정보를 찾을 수 없습니다.")
+        return get_current_user(request)
+
+def get_current_user(request):
+    """세션에서 현재 로그인한 유저를 가져오고, 없으면 PermissionDenied"""
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise PermissionDenied("로그인이 필요합니다.")
+    try:
+        return User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        raise PermissionDenied("유저 정보를 찾을 수 없습니다.")
 
     def perform_create(self, serializer):
         """글 작성 시 로그인한 유저를 author로 자동 설정"""
@@ -341,3 +561,38 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
                 serializer.save()
         else:
             serializer.save()
+
+class WatchlistItemViewSet(viewsets.ModelViewSet):
+    """
+    관심 종목(워치리스트)
+    - GET /api/watchlist/ : 내 관심종목 목록
+    - POST /api/watchlist/ : 관심종목 추가 (ticker, memo)
+    """
+    queryset = WatchlistItem.objects.all()
+    serializer_class = WatchlistItemSerializer
+
+    def get_queryset(self):
+        user = get_current_user(self.request)
+        return WatchlistItem.objects.filter(user=user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = get_current_user(self.request)
+        serializer.save(user=user)
+
+
+class StrategyNoteViewSet(viewsets.ModelViewSet):
+    """
+    나의 전략 / 노트
+    - GET /api/strategy-notes/
+    - POST /api/strategy-notes/
+    """
+    queryset = StrategyNote.objects.all()
+    serializer_class = StrategyNoteSerializer
+
+    def get_queryset(self):
+        user = get_current_user(self.request)
+        return StrategyNote.objects.filter(user=user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = get_current_user(self.request)
+        serializer.save(user=user)

@@ -6,6 +6,7 @@ from .models import (
     StockDailyPrice, StockHolding, TransactionHistory,
     HistoricalNews, LatestNews,
     Comment, PostLike,
+    WatchlistItem, StrategyNote,  
 )
 
 # ---- User 관련 ----
@@ -130,3 +131,16 @@ class LatestNewsSerializer(serializers.ModelSerializer):
         model = LatestNews
         fields = '__all__'
         read_only_fields = ('body_embedding_vector',)
+
+class WatchlistItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WatchlistItem
+        fields = "__all__"
+        read_only_fields = ("id", "user", "created_at")
+
+
+class StrategyNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StrategyNote
+        fields = "__all__"
+        read_only_fields = ("id", "user", "created_at", "updated_at")

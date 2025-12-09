@@ -102,6 +102,37 @@ class TransactionHistory(models.Model):
     quantity = models.IntegerField()
     fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
+
+# ==========================================
+# 5. MyPage: 관심종목 & 전략 노트
+# ==========================================
+
+class WatchlistItem(models.Model):
+    """관심 종목(워치리스트)"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="watchlist")
+    ticker = models.CharField(max_length=12, db_index=True)
+    memo = models.CharField(max_length=255, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "ticker"], name="unique_watchlist_per_user")
+        ]
+
+    def __str__(self):
+        return f"{self.user.nickname} - {self.ticker}"
+
+
+class StrategyNote(models.Model):
+    """나의 전략 / 노하우 노트"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="strategy_notes")
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.nickname} - {self.title}"
 # ==========================================
 # 4. News (RAG) - URL 필드 추가
 # ==========================================
