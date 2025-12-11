@@ -132,12 +132,22 @@ class HistoricalNews(models.Model):
     impacted_ticker = models.CharField(max_length=500, null=True, db_index=True)
 
 class LatestNews(models.Model):
-    news_collection_date = models.DateField()
+    news_collection_date = models.DateTimeField()
     title = models.CharField(max_length=255)
     body = models.TextField()
     url = models.URLField(max_length=2048, null=True, blank=True)
     body_embedding_vector = VectorField(dimensions=1536, null=True, blank=True)
     views = models.IntegerField(default=0)
+    image_url = models.URLField(max_length=2048, null=True, blank=True)
+    source = models.CharField(max_length=50, blank=True, null=True, default="Unknown")
+    company_name = models.CharField(max_length=50, blank=True, null=True)
+    sentiment = models.CharField(max_length=20, default='neutral')
+    class Meta:
+        # 👇 [수정] 정렬 기준도 최신순으로
+        ordering = ['-news_collection_date'] 
+
+    def __str__(self):
+        return self.title
 
 # ==========================================
 # 5. MyPage: 관심종목 & 전략 노트

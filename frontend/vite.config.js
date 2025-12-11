@@ -15,4 +15,12 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  // 👇 [여기 추가됨] 도커 및 윈도우 환경 필수 설정
+  server: {
+    host: '0.0.0.0', // 도커 밖에서 접속 허용
+    port: 5173,
+    watch: {
+      usePolling: true, // 윈도우에서 파일 변경 감지(핫 리로딩) 활성화
+    }
+  }
 })

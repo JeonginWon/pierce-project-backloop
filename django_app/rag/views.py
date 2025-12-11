@@ -445,6 +445,7 @@ class HistoricalNewsViewSet(viewsets.ModelViewSet):
 class LatestNewsViewSet(viewsets.ModelViewSet):
     queryset = LatestNews.objects.all()
     serializer_class = LatestNewsSerializer
+    permission_classes = [AllowAny]
 
     def perform_create(self, serializer):
         text = serializer.validated_data.get('body')
