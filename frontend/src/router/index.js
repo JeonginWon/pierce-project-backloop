@@ -1,17 +1,30 @@
-// src/router/index.js
 import { createRouter, createWebHistory } from 'vue-router'
+
+// 1. 뷰 컴포넌트들을 미리 import (Lazy Load 방식도 좋지만, 메인은 바로 로딩)
+import LandingView from '../views/LandingView.vue'
 import HomeView from '../views/HomeView.vue'
+import StockDetailView from '../views/StockDetailView.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'home',
+    name: 'landing',
+    component: LandingView,
+  },
+  {
+    path: '/dashboard',
+    name: 'dashboard',
     component: HomeView,
   },
   {
+    path: '/stock/:code',  // :code 부분이 변수처럼 동작 (예: /stock/005930)
+    name: 'stock-detail',
+    component: StockDetailView,
+  },
+  // 나머지 메뉴들 (뉴스, 커뮤니티, 마이페이지, 로그인 등)
+  {
     path: '/news',
     name: 'news',
-    // 💡 lazy-loaded: 방문할 때 로드됨
     component: () => import('../views/NewsView.vue'),
   },
   {
@@ -24,7 +37,6 @@ const routes = [
     name: 'mypage',
     component: () => import('../views/MyPageView.vue'),
   },
-  // 👇 로그인 및 회원가입 라우트 추가
   {
     path: '/login',
     name: 'login',
@@ -38,7 +50,6 @@ const routes = [
 ]
 
 const router = createRouter({
-  // Vite 환경 변수 사용 (배포 시 경로 문제 방지)
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
