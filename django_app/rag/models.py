@@ -142,6 +142,8 @@ class LatestNews(models.Model):
     source = models.CharField(max_length=50, blank=True, null=True, default="Unknown")
     company_name = models.CharField(max_length=50, blank=True, null=True)
     sentiment = models.CharField(max_length=20, default='neutral')
+    max_similarity_score = models.FloatField(default=0.0, db_index=True)
+    view_count = models.IntegerField(default=0)
     class Meta:
         # 👇 [수정] 정렬 기준도 최신순으로
         ordering = ['-news_collection_date'] 

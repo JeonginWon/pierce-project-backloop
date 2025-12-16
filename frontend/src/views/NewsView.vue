@@ -14,10 +14,10 @@ const loading = ref(false)
 const searchQuery = ref('')     
 const page = ref(1)             
 const totalPages = ref(1)       
-const activeCategory = ref('통합뉴스')
-const activeTab = ref('최신뉴스')
 
-const CATEGORIES = ['통합뉴스', '인기뉴스', '최신뉴스', '금융뉴스']
+// 👇 [수정] 카테고리 목록 변경 (금융뉴스 삭제 -> 유사도순 추가)
+const CATEGORIES = ['통합뉴스', '인기뉴스', '최신뉴스', '유사도순']
+const activeCategory = ref('통합뉴스')
 
 // --- 2. API 통신 ---
 const fetchNews = async () => {
@@ -26,10 +26,20 @@ const fetchNews = async () => {
   window.scrollTo({ top: 0, behavior: 'smooth' })
   
   try {
+    // 👇 [로직] 선택된 카테고리에 따라 정렬 파라미터(sort) 결정
+    let sortParam = 'latest' // 기본값 (통합뉴스, 최신뉴스)
+
+    if (activeCategory.value === '인기뉴스') {
+      sortParam = 'popular'
+    } else if (activeCategory.value === '유사도순') {
+      sortParam = 'similarity'
+    } 
+
     const response = await axios.get('http://localhost:8000/api/latest-news/', {
       params: {
         search: searchQuery.value,
         page: page.value, 
+        sort: sortParam, // 백엔드로 정렬 기준 전송
       }
     })
     
@@ -60,8 +70,12 @@ const onSearch = () => {
 
 const selectCategory = (cat) => {
   activeCategory.value = cat
+  page.value = 1
+  // 검색어가 없어도 '유사도순(역사 패턴 매칭)' 조회가 가능하므로 바로 fetchNews 호출
+  fetchNews()
 }
 
+// --- 유틸리티 함수 ---
 const formatTime = (dateString) => {
   if (!dateString) return ''
   return dayjs(dateString).fromNow()
@@ -97,6 +111,13 @@ const getSentimentText = (sentiment) => {
               :class="{ 'active-category': activeCategory === category }"
               link
             >
+              <template v-slot:prepend>
+                 <v-icon v-if="category === '인기뉴스'" icon="mdi-fire" color="red" class="mr-2"></v-icon>
+                 <v-icon v-if="category === '최신뉴스'" icon="mdi-clock-outline" color="blue" class="mr-2"></v-icon>
+                 <v-icon v-if="category === '유사도순'" icon="mdi-vector-link" color="purple" class="mr-2"></v-icon>
+                 <v-icon v-if="category === '통합뉴스'" icon="mdi-newspaper" color="grey" class="mr-2"></v-icon>
+              </template>
+
               <v-list-item-title :class="activeCategory === category ? 'text-white font-weight-bold' : 'text-grey'">
                 {{ category }}
               </v-list-item-title>
@@ -105,7 +126,7 @@ const getSentimentText = (sentiment) => {
         </v-card>
       </v-col>
 
-      <v-col cols="12" md="9">
+      <v-col cols="12" md="9" class="overflow-hidden">
         
         <div class="mb-6">
           <v-text-field
@@ -120,22 +141,6 @@ const getSentimentText = (sentiment) => {
             class="custom-input"
             @keyup.enter="onSearch"
           ></v-text-field>
-        </div>
-
-        <div class="d-flex gap-2 mb-6">
-          <v-chip
-            v-for="tab in ['최신뉴스', '인기뉴스']"
-            :key="tab"
-            :variant="activeTab === tab ? 'flat' : 'outlined'"
-            :color="activeTab === tab ? 'white' : 'grey'"
-            class="px-4"
-            @click="activeTab = tab"
-            link
-          >
-            <span :class="activeTab === tab ? 'text-black font-weight-bold' : 'text-grey-lighten-1'">
-              {{ tab }}
-            </span>
-          </v-chip>
         </div>
 
         <div v-if="loading" class="d-flex justify-center my-10">
@@ -168,6 +173,7 @@ const getSentimentText = (sentiment) => {
                   <h3 class="text-subtitle-1 font-weight-bold text-white mb-2 text-truncate-2 title-hover">
                     {{ news.title }}
                   </h3>
+                  
                   <div class="d-flex flex-wrap gap-2 mb-2">
                     <v-chip
                       v-if="news.company_name"
@@ -178,9 +184,7 @@ const getSentimentText = (sentiment) => {
                       class="font-weight-bold"
                       style="max-width: 120px;" 
                     >
-                      <span class="text-truncate">
-                        {{ news.company_name }}
-                      </span>
+                      <span class="text-truncate">{{ news.company_name }}</span>
                     </v-chip>
 
                     <v-chip 
@@ -194,12 +198,26 @@ const getSentimentText = (sentiment) => {
                     >
                       {{ getSentimentText(news.sentiment) }}
                     </v-chip>
+
+                    <v-chip 
+                      v-if="activeCategory === '유사도순' && !searchQuery && news.max_similarity_score" 
+                      size="x-small" 
+                      color="purple" 
+                      variant="tonal"
+                      label
+                      class="font-weight-bold"
+                    >
+                      역사 유사도 {{ (news.max_similarity_score * 100).toFixed(1) }}%
+                    </v-chip>
                   </div>
                 </div>
+
                 <div class="d-flex align-center text-caption text-grey">
                   <span class="font-weight-medium text-grey-lighten-2">{{ news.source || '인터넷뉴스' }}</span>
                   <span class="mx-2">·</span>
                   <span>{{ formatTime(news.news_collection_date) }}</span>
+                  <span class="mx-2">·</span>
+                  <span>조회 {{ news.view_count || 0 }}</span>
                 </div>
               </div>
             </div>
@@ -226,12 +244,7 @@ const getSentimentText = (sentiment) => {
 </template>
 
 <style scoped>
-/* 스크롤바가 생겼다 없어지는 문제로 인한 레이아웃 흔들림 방지 */
-html {
-  overflow-y: scroll;
-}
-
-/* 기존 카드 스타일 등은 유지 */
+/* 기존 스타일 */
 .custom-card {
   background-color: #141414 !important;
   border-color: #333 !important;
@@ -277,49 +290,19 @@ html {
   margin-bottom: 64px !important;
 }
 
+/* 👇 [핵심] 스크롤바 유무에 따른 화면 흔들림 방지 */
 .v-container {
-  min-height: 101vh !important;
+  min-height: 101vh !important; /* 항상 스크롤바가 생기도록 강제 */
 }
 
-/* --------------------- */
-/*  흔들림 방지 핵심 부분 */
-/* --------------------- */
-.fixed-bottom-pagination {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-
-  /* 100% → 100vw 변경하여 width 변동으로 인한 흔들림 제거 */
-  width: 100vw !important;
-
-  height: 80px;
-  background-color: rgba(18, 18, 18, 0.95);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid #333;
-  z-index: 1000;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
-}
-</style>
-
-<style>
-/* 스크롤바 영역을 항상 예약하여 컨텐츠 길이에 따른 흔들림 방지 */
-html {
-  overflow-y: scroll; /* 또는 scrollbar-gutter: stable; (최신 브라우저) */
-}
-</style>
-
-<style scoped>
-/* 기존 스타일 유지... */
-
+/* 👇 [핵심] 하단바 고정 및 흔들림 방지 */
 .fixed-bottom-pagination {
   position: fixed;
   bottom: 0;
   left: 0;
   
-  /* [수정] 100vw는 스크롤바를 무시하므로 100%로 변경 */
+  /* 100vw 대신 100%를 사용하여 스크롤바 영역을 침범하지 않게 함 */
   width: 100% !important; 
-  /* 혹시 모를 padding/margin 간섭 방지를 위해 width 대신 아래처럼 써도 됩니다 */
-  /* left: 0; right: 0; width: auto; */
 
   height: 80px;
   background-color: rgba(18, 18, 18, 0.95);
@@ -328,6 +311,4 @@ html {
   z-index: 1000;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
 }
-
-/* ...나머지 스타일 */
 </style>
