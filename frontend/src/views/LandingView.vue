@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router'
 //image import
 import dataAnalysisImg from '@/assets/data_image.jpeg'
-import communityImg from '@/assets/community_image.png'
+import communityImg from '@/assets/community_image.jpeg'
 
 const router = useRouter()
 
