@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import PermissionDenied
-
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth.hashers import check_password
 from django.conf import settings
 from django.db.models import Count, Sum
@@ -294,6 +294,7 @@ class PostViewSet(viewsets.ModelViewSet):
         comment_count=Count("comments"), like_count=Count("likes")
     )
     serializer_class = PostWriteSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_serializer_class(self):
         if self.action in ["list", "retrieve", "feed"]:

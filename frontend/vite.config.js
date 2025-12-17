@@ -26,6 +26,10 @@ export default defineConfig({
       '/api': {
         target: 'http://django:8000', 
         changeOrigin: true,
+      },
+      '/media': {
+        target: 'http://django:8000',
+        changeOrigin: true,
       }
     }
   }

@@ -9,7 +9,7 @@ class User(models.Model):
     nickname = models.CharField(max_length=255, unique=True)
     password = models.CharField(max_length=255)
     profile_image_url = models.CharField(max_length=255, null=True, blank=True)
-    mileage = models.IntegerField(default=3000) # 가입 시 3000 백마일 기본 지급
+    mileage = models.IntegerField(default=30000000) # 가입 시 3000만 백마일 기본 지급
     total_return_rate = models.FloatField(default=0.0) # 수익률 (랭킹용)
     def __str__(self):
         return self.nickname
