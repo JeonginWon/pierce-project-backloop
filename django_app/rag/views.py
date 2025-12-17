@@ -492,7 +492,7 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
     def similar_latest_news(self, request, pk=None):
         item = self.get_object()
         if not item.body_embedding_vector:
-             return Response({"error": "벡터 없음"}, status=400)
+            return Response({"error": "벡터 없음"}, status=400)
         results = LatestNews.objects.exclude(pk=pk).annotate(
             distance=CosineDistance('body_embedding_vector', item.body_embedding_vector)
         ).order_by('distance')[:5]
