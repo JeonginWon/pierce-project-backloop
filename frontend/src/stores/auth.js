@@ -1,4 +1,3 @@
-// src/stores/auth.js
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -10,29 +9,45 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref(null)
   const router = useRouter()
   
-  // API 프록시 설정이 되어있다고 가정 (/api -> http://localhost:8000/api)
   const API_BASE = '/api'
 
-  // 1. 로그인
-  const login = async (nickname, password) => {
+  // 🍪 CSRF 토큰 가져오는 헬퍼 함수 (POST 요청 시 필수)
+  const getCookie = (name) => {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  // 1. 로그인 (username, password 사용)
+  const login = async (username, password) => {
     loading.value = true
     error.value = null
     try {
       const res = await fetch(`${API_BASE}/users/login/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, password }),
-        // ❗ 세션 쿠키 교환을 위해 필수
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'), // 🛡️ CSRF 헤더 추가
+        },
+        // 👇 nickname 대신 username 사용 (Django 기본값)
+        body: JSON.stringify({ username, password }),
         credentials: 'include' 
       })
 
       if (!res.ok) {
-        // 백엔드 에러 메시지 처리 시도
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.message || '로그인에 실패했습니다.')
+        throw new Error(data.detail || data.message || '로그인에 실패했습니다.')
       }
 
-      // 로그인 성공 시 내 정보 가져오기
       await fetchUser()
       return true
     } catch (err) {
@@ -43,43 +58,64 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 2. 회원가입
-  const register = async (nickname, password) => {
+  // 2. 회원가입 (모든 필드 전송하도록 수정)
+  // 👇 인자를 객체(payload)로 받음
+  const register = async (payload) => {
     loading.value = true
     error.value = null
     try {
-      // 프로필 이미지는 임시로 랜덤 아바타 서비스 사용
-      const profile_image_url = `https://api.dicebear.com/7.x/adventurer/svg?seed=${nickname}`
+      // payload에서 필요한 정보 추출
+      const { username, password, email, nickname } = payload
+      
+      // 랜덤 프로필 이미지 생성 (username 기준)
+      const profile_image_url = `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`
 
       const res = await fetch(`${API_BASE}/users/register/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'), // 🛡️ CSRF 헤더 추가
+        },
+        // 👇 모든 필드를 백엔드로 전송
         body: JSON.stringify({ 
-          nickname, 
+          username, 
           password,
+          email,
+          nickname,
           profile_image_url 
         }),
       })
 
       if (!res.ok) {
+        // 에러 응답 파싱 (Django는 보통 객체 형태로 에러를 줌)
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.message || '회원가입에 실패했습니다.')
+        // 에러 메시지가 배열이나 객체일 경우를 대비해 문자열로 변환
+        const errorMsg = typeof data === 'object' ? JSON.stringify(data) : data
+        throw new Error(errorMsg || '회원가입에 실패했습니다.')
       }
       
       return true
     } catch (err) {
-      error.value = err.message
+      // 보기 좋게 에러 메시지 정제
+      let msg = err.message
+      if (msg.includes('username')) msg = "이미 존재하는 아이디입니다."
+      else if (msg.includes('email')) msg = "이미 사용 중인 이메일입니다."
+      
+      error.value = msg
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // 3. 내 정보 가져오기 (새로고침 시 로그인 유지용)
+  // 3. 내 정보 가져오기
   const fetchUser = async () => {
     try {
       const res = await fetch(`${API_BASE}/users/me/`, {
         method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include'
       })
       
@@ -88,7 +124,6 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = userData
         isAuthenticated.value = true
       } else {
-        // 세션 만료 혹은 비로그인
         user.value = null
         isAuthenticated.value = false
       }
@@ -104,6 +139,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await fetch(`${API_BASE}/users/logout/`, {
         method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+        },
         credentials: 'include'
       })
     } catch (err) {
@@ -111,9 +149,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       user.value = null
       isAuthenticated.value = false
-      // 홈으로 리다이렉트
-      if (router) router.push('/')
-      else window.location.href = '/'
+      window.location.href = '/' // 깔끔하게 새로고침하며 이동
     }
   }
 
@@ -125,6 +161,6 @@ export const useAuthStore = defineStore('auth', () => {
     login, 
     register, 
     fetchUser, 
-    logout 
+    logout, 
   }
 })

@@ -6,12 +6,16 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const nickname = ref('')
+// 👇 추가된 필드들
+const username = ref('') // 아이디
+const email = ref('')    // 이메일
+const nickname = ref('') // 닉네임
 const password = ref('')
 const confirmPassword = ref('')
 
 const handleSignup = async () => {
-  if (!nickname.value || !password.value) {
+  // 빈 값 체크 강화
+  if (!username.value || !email.value || !nickname.value || !password.value) {
     alert('모든 항목을 입력해주세요.')
     return
   }
@@ -20,10 +24,18 @@ const handleSignup = async () => {
     return
   }
   
-  const success = await authStore.register(nickname.value, password.value)
+  // 👇 인자 4개 전달 (순서 주의: 아이디, 비번, 이메일, 닉네임)
+  // authStore.register 함수도 이 순서대로 받도록 수정해야 합니다.
+  const success = await authStore.register({
+    username: username.value,
+    password: password.value,
+    email: email.value,
+    nickname: nickname.value
+  })
+
   if (success) {
     alert('회원가입이 완료되었습니다! 로그인해주세요.')
-    router.push('/login')
+    router.push({ name: 'login' })
   }
 }
 </script>
@@ -34,6 +46,24 @@ const handleSignup = async () => {
       <h1 class="auth-title">회원가입</h1>
       
       <form @submit.prevent="handleSignup" class="auth-form">
+        <div class="input-group">
+          <label>아이디</label>
+          <input 
+            v-model="username" 
+            type="text" 
+            placeholder="사용하실 아이디 (영문/숫자)" 
+          />
+        </div>
+
+        <div class="input-group">
+          <label>이메일</label>
+          <input 
+            v-model="email" 
+            type="email" 
+            placeholder="example@email.com" 
+          />
+        </div>
+
         <div class="input-group">
           <label>닉네임</label>
           <input 
@@ -85,42 +115,15 @@ const handleSignup = async () => {
 </template>
 
 <style scoped>
-/* LoginView.vue와 동일한 스타일을 사용하거나, global css로 빼서 사용 */
-/* 편의상 LoginView와 동일한 CSS를 그대로 붙여넣어 주세요 */
-.auth-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 200px);
-  padding: 20px;
-}
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  background: #141414;
-  border: 1px solid #1f2937;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-}
-.auth-title {
-  text-align: center;
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 24px;
-  color: #f5f5f7;
-}
+/* 기존 스타일 유지 */
+.auth-container { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 200px); padding: 20px; }
+.auth-card { width: 100%; max-width: 400px; background: #141414; border: 1px solid #1f2937; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+.auth-title { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 24px; color: #f5f5f7; }
 .input-group { margin-bottom: 20px; }
 .input-group label { display: block; font-size: 13px; color: #9ca3af; margin-bottom: 6px; }
-.input-group input {
-  width: 100%; background: #0a0a0a; border: 1px solid #2d3748;
-  border-radius: 8px; padding: 12px; color: white; font-size: 15px; outline: none;
-}
+.input-group input { width: 100%; background: #0a0a0a; border: 1px solid #2d3748; border-radius: 8px; padding: 12px; color: white; font-size: 15px; outline: none; }
 .input-group input:focus { border-color: #3b82f6; }
-.submit-btn {
-  width: 100%; padding: 12px; background: #2563eb; color: white; border: none;
-  border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
-}
+.submit-btn { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
 .submit-btn:hover { background: #1d4ed8; }
 .submit-btn:disabled { background: #4b5563; }
 .error-msg { color: #ef4444; font-size: 13px; margin-bottom: 12px; text-align: center; }
