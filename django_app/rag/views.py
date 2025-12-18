@@ -6,11 +6,14 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth.hashers import check_password
 from django.conf import settings
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, Q
 from decimal import Decimal, InvalidOperation
 from pgvector.django import CosineDistance
 
+from datetime import timedelta
 import openai
+
+from .utils import get_embedding, update_similarity_score
 
 # 모델 및 시리얼라이저 Import
 from .models import (
@@ -498,37 +501,127 @@ class HistoricalNewsViewSet(viewsets.ModelViewSet):
 class LatestNewsViewSet(viewsets.ModelViewSet):
     queryset = LatestNews.objects.all()
     serializer_class = LatestNewsSerializer
+    permission_classes = [AllowAny] 
 
-    def perform_create(self, serializer):
-        text = serializer.validated_data.get('body')
-        if text:
-            vector = get_embedding(text)
-            if vector:
-                serializer.save(body_embedding_vector=vector)
+    def create(self, request, *args, **kwargs):
+        # 1. 요청 데이터에서 '제목' 꺼내기
+        title = request.data.get('title')
+        
+        # 2. DB에 같은 제목의 뉴스가 있는지 확인
+        # (필요하다면 company_name이나 date도 같이 비교 가능)
+        if title and LatestNews.objects.filter(title=title).exists():
+            print(f"✋ 중복 뉴스 스킵: {title}")
+            # 저장을 안 하고 바로 200 OK 리턴 (Airflow가 실패로 인식하지 않게)
+            return Response({"message": "Skipped (Duplicate)", "title": title}, status=200)
+
+        # 3. 중복이 아니면 원래대로 저장 진행 (perform_create -> 임베딩 생성 등)
+        return super().create(request, *args, **kwargs)
+    # 👇 [수정] list 메서드에서 정렬 및 검색 로직을 통합 처리
+
+    def list(self, request, *args, **kwargs):
+        # 1. 기본 쿼리셋
+        queryset = self.queryset.all()
+        
+        # 2. 파라미터 받기
+        sort_by = request.query_params.get('sort', 'latest')
+        search_query = request.query_params.get('search', '')
+
+        # 3. 정렬 로직 분기
+        if sort_by == 'similarity':
+            if search_query:
+                # [CASE A] 검색어 있음 -> '의미'가 비슷한 뉴스 찾기 (Semantic Search)
+                vector = get_embedding(search_query)
+                if vector:
+                    queryset = queryset.annotate(
+                        distance=CosineDistance('body_embedding_vector', vector)
+                    ).order_by('distance')
+                else:
+                    # 임베딩 실패 시 최신순으로 Fallback
+                    queryset = queryset.order_by('-news_collection_date')
             else:
-                serializer.save()
+                # [CASE B] 검색어 없음 -> '역사가 반복되는' 뉴스 찾기 (Pattern Matching)
+                # (모델에 max_similarity_score 필드가 있어야 함)
+                queryset = queryset.order_by('-max_similarity_score')
+
+        elif sort_by == 'popular':
+            # [CASE C] 인기순 (조회수)
+            # (모델에 view_count 필드가 있어야 함)
+            queryset = queryset.order_by('-view_count')
+
         else:
-            serializer.save()
+            # [CASE D] 최신순 (기본값)
+            queryset = queryset.order_by('-news_collection_date')
 
-    @action(detail=True, methods=['get'], url_path='similar_latest')
-    def similar_latest_news(self, request, pk=None):
-        item = self.get_object()
-        if not item.body_embedding_vector:
-            return Response({"error": "벡터 없음"}, status=400)
-        results = LatestNews.objects.exclude(pk=pk).annotate(
-            distance=CosineDistance('body_embedding_vector', item.body_embedding_vector)
-        ).order_by('distance')[:5]
-        return Response(self.get_serializer(results, many=True).data)
+        # 4. 키워드 필터링 (유사도 정렬이 아닐 때만 적용)
+        # 유사도 정렬은 이미 의미 기반으로 찾았으므로 제외, 인기/최신순일 때만 텍스트 포함 여부 확인
+        if search_query and sort_by != 'similarity':
+            queryset = queryset.filter(
+                Q(title__icontains=search_query) | 
+                Q(body__icontains=search_query) |
+                Q(company_name__icontains=search_query)
+            )
 
+        # 5. 페이지네이션 처리
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    # 🔎 Retrieve(상세 조회)를 위해 get_queryset은 기본 상태 유지 (혹은 필요 시 삭제 가능)
+    def get_queryset(self):
+        return LatestNews.objects.all().order_by('-news_collection_date')
+
+    # (기존 similar_historical_news, search 액션 유지)
     @action(detail=True, methods=['get'], url_path='similar_historical')
     def similar_historical_news(self, request, pk=None):
-        item = self.get_object()
-        if not item.body_embedding_vector:
-            return Response({"message": "분석 중"}, status=200)
-        results = HistoricalNews.objects.annotate(
-            distance=CosineDistance('body_embedding_vector', item.body_embedding_vector)
-        ).order_by('distance')[:3]
-        return Response(HistoricalNewsSerializer(results, many=True).data)
+        current_news = self.get_object()
+        
+        if current_news.body_embedding_vector is None:
+            return Response({"message": "분석 중 (임베딩 없음)"}, status=200)
+
+        similar_news = HistoricalNews.objects.annotate(
+            distance=CosineDistance('body_embedding_vector', current_news.body_embedding_vector)
+        ).order_by('distance').first()
+
+        if not similar_news:
+            return Response({"message": "유사한 과거 데이터가 없습니다."}, status=200)
+
+        raw_ticker = similar_news.impacted_ticker
+        target_tickers = []
+        if raw_ticker:
+            split_tickers = raw_ticker.split("|")
+            target_tickers = [t.strip() for t in split_tickers if t.strip()][:3]
+
+        related_stocks_data = []
+        target_date = similar_news.news_collection_date
+        start_date = target_date - timedelta(days=5)
+        end_date = target_date + timedelta(days=10)
+
+        for code in target_tickers:
+            company_obj = Company.objects.filter(code=code).first()
+            company_name = company_obj.name if company_obj else code
+            
+            stock_prices = StockPrice.objects.filter(
+                company__code=code,
+                record_time__range=(start_date, end_date)
+            ).order_by('record_time')
+            
+            related_stocks_data.append({
+                "name": company_name,
+                "ticker": code,
+                "chart_data": StockPriceSerializer(stock_prices, many=True).data
+            })
+
+        similar_news_data = HistoricalNewsSerializer(similar_news).data
+        
+        return Response({
+            "similar_news": similar_news_data,
+            "similarity_score": 1 - similar_news.distance,
+            "related_stocks": related_stocks_data 
+        })  
 
     @action(detail=False, methods=['post'])
     def search(self, request):
@@ -541,7 +634,22 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
         ).order_by('distance')[:5]
         return Response(self.get_serializer(results, many=True).data)
 
-
+    def perform_create(self, serializer):
+        text = serializer.validated_data.get('body')
+        
+        # 1. 임베딩 생성 및 저장
+        if text:
+            vector = get_embedding(text)
+            if vector:
+                # save()는 저장된 객체(instance)를 반환함
+                instance = serializer.save(body_embedding_vector=vector)
+                
+                # 2. 👇 [핵심] 저장 직후 유사도 점수 계산 함수 호출!
+                update_similarity_score(instance)
+            else:
+                serializer.save()
+        else:
+            serializer.save()
 # ========================================================
 # 4. MyPage ViewSets
 # ========================================================

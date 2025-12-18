@@ -113,8 +113,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
-
+TIME_ZONE = 'Asia/Seoul'
 USE_I18N = True
 
 USE_TZ = True
@@ -142,3 +141,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # 브라우저에서 접근할 때 사용할 URL (예: http://localhost:8000/media/...)
 MEDIA_URL = '/media/'
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,  # 한 페이지당 20개씩 페이지네이션
+}

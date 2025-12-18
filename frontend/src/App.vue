@@ -61,8 +61,8 @@ onMounted(() => {
 
     <main :class="route.name === 'landing' ? 'main-full' : 'main-area'">
       <RouterView />
-    </main>
-  </div>
+    </v-main>
+  </v-app>
 </template>
 
 <style scoped>
@@ -92,4 +92,21 @@ onMounted(() => {
 /* 메인 영역 스타일 */
 .main-area { max-width: 1120px; margin: 0 auto; padding: 32px 20px 60px; }
 .main-full { width: 100%; padding: 0; margin: 0; }
+<style>
+/* 👇 [핵심 수정] html뿐만 아니라 Vuetify의 메인 래퍼(wrapper)까지 스크롤바 공간 강제 확보 */
+html, body, .v-application, .v-application__wrap {
+  overflow-y: scroll !important; 
+}
+
+/* 폰트 및 배경 설정 */
+:root, body, .v-application {
+  font-family: 'Noto Sans KR', sans-serif !important;
+  background-color: #121212; /* 배경색 유지 */
+}
+
+/* (선택사항) 스크롤바 디자인 */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #1e1e1e; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #777; }
 </style>
