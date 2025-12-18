@@ -61,6 +61,8 @@ onMounted(() => {
     <main :class="route.name === 'landing' ? 'main-full' : 'main-area'">
       <RouterView />
     </main>
+  </div> </template>
+    </main>
     
   </div> </template>
 
@@ -91,6 +93,8 @@ onMounted(() => {
 /* 메인 영역 스타일 */
 .main-area { max-width: 1120px; margin: 0 auto; padding: 32px 20px 60px; }
 .main-full { width: 100%; padding: 0; margin: 0; }
+</style>
+
 </style>
 
 <style>
