@@ -10,7 +10,7 @@
     <v-alert v-else-if="error" type="error" variant="tonal" class="mb-6">
       <div class="d-flex align-center justify-space-between">
         <span>{{ error }}</span>
-        <v-btn color="error" variant="text" @click="loadAllData">다시 시도</v-btn>
+        <v-btn color="error" variant="text" @click="loadUserData">다시 시도</v-btn>
       </div>
     </v-alert>
 
@@ -25,38 +25,52 @@
             <div class="d-flex flex-column align-center">
               <v-avatar size="100" class="mb-4 border-subtle">
                 <img 
-                  :src="user?.profile_image_url || user?.profile_image || `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=2563eb&color=fff&size=200`"
+                  :src="targetUser?.profile_image_url || targetUser?.profile_image || `https://ui-avatars.com/api/?name=${targetUser?.nickname || 'User'}&background=2563eb&color=fff&size=200`"
                   style="width: 100%; height: 100%; object-fit: cover;"
                   alt="프로필"
                 />
               </v-avatar>
               
               <h2 class="text-h5 font-weight-bold text-white mb-1">
-                {{ user?.nickname || '사용자' }}
+                {{ targetUser?.nickname || '사용자' }}
               </h2>
-              <span class="text-grey mb-2">{{ user?.email }}</span>
+              <span class="text-grey mb-2">{{ targetUser?.email }}</span>
               
               <!-- 팔로우 정보 (클릭 가능) -->
               <div class="d-flex gap-4 mb-4">
                 <button @click="loadFollowers" class="follow-stat-btn">
                   <span class="text-grey text-caption">팔로워</span>
-                  <span class="text-white font-weight-bold">{{ user?.followers_count || 0 }}</span>
+                  <span class="text-white font-weight-bold">{{ targetUser?.followers_count || 0 }}</span>
                 </button>
                 <button @click="loadFollowing" class="follow-stat-btn">
                   <span class="text-grey text-caption">팔로잉</span>
-                  <span class="text-white font-weight-bold">{{ user?.following_count || 0 }}</span>
+                  <span class="text-white font-weight-bold">{{ targetUser?.following_count || 0 }}</span>
                 </button>
               </div>
               
+              <!-- 👇 본인이 아니면 팔로우 버튼, 본인이면 마이페이지로 이동 -->
               <v-btn 
+                v-if="!isMyProfile"
+                block
+                :color="isFollowing ? 'grey' : 'primary'"
+                :variant="isFollowing ? 'outlined' : 'flat'"
+                rounded="lg"
+                :prepend-icon="isFollowing ? 'mdi-account-check' : 'mdi-account-plus'"
+                @click="toggleFollowUser"
+              >
+                {{ isFollowing ? '팔로잉' : '팔로우' }}
+              </v-btn>
+              
+              <v-btn 
+                v-else
                 block
                 variant="tonal" 
                 color="primary" 
                 rounded="lg" 
                 prepend-icon="mdi-pencil"
-                @click="openEditDialog"
+                @click="$router.push('/my')"
               >
-                회원정보 수정
+                내 프로필 수정
               </v-btn>
             </div>
           </v-card>
@@ -118,9 +132,7 @@
         >
           <v-tab value="holdings" class="text-body-1">📊 보유 종목</v-tab>
           <v-tab value="transactions" class="text-body-1">📝 거래 내역</v-tab>
-          <v-tab value="posts" class="text-body-1">💬 내가 쓴 글</v-tab>
-          <v-tab value="watchlist" class="text-body-1">⭐ 관심 종목</v-tab>
-          <v-tab value="notes" class="text-body-1">💡 투자 전략</v-tab>
+          <v-tab value="posts" class="text-body-1">💬 작성한 글</v-tab>
         </v-tabs>
 
         <v-divider class="border-opacity-25"></v-divider>
@@ -237,11 +249,11 @@
             </v-list>
           </v-window-item>
 
-          <!-- ========== 내가 쓴 글 ========== -->
+          <!-- ========== 작성한 글 ========== -->
           <v-window-item value="posts">
             <v-list bg-color="transparent">
               <v-list-item 
-                v-for="post in myPosts" 
+                v-for="post in userPosts" 
                 :key="post.id" 
                 @click="goToPost(post.id)"
                 class="px-4 py-3 border-bottom"
@@ -261,181 +273,18 @@
                 </v-list-item-subtitle>
               </v-list-item>
               
-              <div v-if="myPosts.length === 0" class="text-center py-16 text-grey">
+              <div v-if="userPosts.length === 0" class="text-center py-16 text-grey">
                 <v-icon icon="mdi-pencil-off" size="48" class="mb-2"></v-icon>
                 <div>작성한 게시글이 없습니다.</div>
               </div>
             </v-list>
           </v-window-item>
 
-          <!-- ========== 관심 종목 ========== -->
-          <v-window-item value="watchlist">
-            <v-row v-if="watchlist.length > 0">
-              <v-col 
-                v-for="item in watchlist" 
-                :key="item.ticker"
-                cols="12" 
-                sm="6" 
-                md="4"
-              >
-                <v-card 
-                  class="custom-card pa-4" 
-                  rounded="lg" 
-                  variant="outlined"
-                  @click="goToStock(item.ticker)"
-                  style="cursor: pointer;"
-                >
-                  <div class="d-flex justify-space-between align-center mb-2">
-                    <span class="text-h6 text-white font-weight-bold">
-                      {{ item.ticker }}
-                    </span>
-                    <v-btn 
-                      icon="mdi-close" 
-                      variant="text" 
-                      size="small"
-                      @click.stop="toggleWatchlistItem(item.ticker)"
-                    ></v-btn>
-                  </div>
-                  <span class="text-caption text-grey">종목 상세보기</span>
-                </v-card>
-              </v-col>
-            </v-row>
-            
-            <div v-else class="text-center py-16 text-grey">
-              <v-icon icon="mdi-star-outline" size="48" class="mb-2"></v-icon>
-              <div>관심 종목이 없습니다.</div>
-            </div>
-          </v-window-item>
-
-          <!-- ========== 투자 전략 메모 ========== -->
-          <v-window-item value="notes">
-            <div class="d-flex justify-space-between align-center mb-4">
-              <h4 class="text-white">내 투자 전략</h4>
-              <v-btn 
-                color="primary" 
-                variant="tonal" 
-                prepend-icon="mdi-plus"
-                @click="openNoteDialog()"
-              >
-                메모 추가
-              </v-btn>
-            </div>
-
-            <v-row v-if="strategyNotes.length > 0">
-              <v-col 
-                v-for="note in strategyNotes" 
-                :key="note.id"
-                cols="12"
-              >
-                <v-card class="custom-card pa-4" rounded="lg" variant="outlined">
-                  <div class="d-flex justify-space-between align-center mb-2">
-                    <h4 class="text-white font-weight-bold">{{ note.title }}</h4>
-                    <div>
-                      <v-btn 
-                        icon="mdi-pencil" 
-                        variant="text" 
-                        size="small"
-                        @click="openNoteDialog(note)"
-                      ></v-btn>
-                      <v-btn 
-                        icon="mdi-delete" 
-                        variant="text" 
-                        size="small"
-                        color="error"
-                        @click="deleteNote(note.id)"
-                      ></v-btn>
-                    </div>
-                  </div>
-                  <p class="text-grey mb-2">{{ note.content }}</p>
-                  <span class="text-caption text-grey">
-                    {{ formatDate(note.created_at) }}
-                  </span>
-                </v-card>
-              </v-col>
-            </v-row>
-
-            <div v-else class="text-center py-16 text-grey">
-              <v-icon icon="mdi-note-outline" size="48" class="mb-2"></v-icon>
-              <div>작성한 메모가 없습니다.</div>
-            </div>
-          </v-window-item>
-
         </v-window>
       </v-card>
     </div>
 
-    <!-- =================== 모달: 회원정보 수정 =================== -->
-    <v-dialog v-model="showEditModal" max-width="400">
-      <v-card class="custom-card" rounded="xl">
-        <v-card-title class="text-white pa-4">회원정보 수정</v-card-title>
-        <v-card-text class="pa-4">
-          <v-text-field
-            v-model="editForm.nickname"
-            label="닉네임"
-            variant="outlined"
-            bg-color="#1E1E1E"
-            color="primary"
-            class="mb-3"
-          ></v-text-field>
-          <v-text-field
-            v-model="editForm.email"
-            label="이메일"
-            variant="outlined"
-            bg-color="#1E1E1E"
-            color="primary"
-            class="mb-3"
-          ></v-text-field>
-          <v-text-field
-            v-model="editForm.password"
-            label="비밀번호 (변경 시에만 입력)"
-            type="password"
-            variant="outlined"
-            bg-color="#1E1E1E"
-            color="primary"
-            hint="변경하지 않으려면 비워두세요"
-          ></v-text-field>
-        </v-card-text>
-        <v-card-actions class="pa-4">
-          <v-spacer></v-spacer>
-          <v-btn color="grey" variant="text" @click="showEditModal = false">취소</v-btn>
-          <v-btn color="primary" variant="flat" @click="updateProfile">저장</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- =================== 모달: 투자 전략 메모 =================== -->
-    <v-dialog v-model="showNoteModal" max-width="500">
-      <v-card class="custom-card" rounded="xl">
-        <v-card-title class="text-white pa-4">
-          {{ editingNote ? '메모 수정' : '새 메모 작성' }}
-        </v-card-title>
-        <v-card-text class="pa-4">
-          <v-text-field
-            v-model="noteForm.title"
-            label="제목"
-            variant="outlined"
-            bg-color="#1E1E1E"
-            color="primary"
-            class="mb-3"
-          ></v-text-field>
-          <v-textarea
-            v-model="noteForm.content"
-            label="내용"
-            variant="outlined"
-            bg-color="#1E1E1E"
-            color="primary"
-            rows="5"
-          ></v-textarea>
-        </v-card-text>
-        <v-card-actions class="pa-4">
-          <v-spacer></v-spacer>
-          <v-btn color="grey" variant="text" @click="closeNoteModal">취소</v-btn>
-          <v-btn color="primary" variant="flat" @click="saveNote">저장</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- =================== 모달: 팔로워 목록 =================== -->
+    <!-- =================== 모달: 팔로워 목록 (MyPageView와 동일) =================== -->
     <v-dialog v-model="showFollowersModal" max-width="500">
       <v-card class="custom-card" rounded="xl">
         <v-card-title class="text-white pa-4 d-flex justify-space-between align-center">
@@ -454,6 +303,8 @@
               v-for="follower in followers" 
               :key="follower.id"
               class="user-item"
+              @click="goToUserProfile(follower.id)"
+              style="cursor: pointer;"
             >
               <div class="d-flex align-center gap-3">
                 <v-avatar size="40">
@@ -471,15 +322,6 @@
                     </span>
                   </div>
                 </div>
-                <v-btn
-                  v-if="follower.id !== user.id"
-                  :color="follower.is_following ? 'grey' : 'primary'"
-                  :variant="follower.is_following ? 'outlined' : 'flat'"
-                  size="small"
-                  @click="toggleFollow(follower.id)"
-                >
-                  {{ follower.is_following ? '팔로잉' : '팔로우' }}
-                </v-btn>
               </div>
             </div>
           </div>
@@ -490,7 +332,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- =================== 모달: 팔로잉 목록 =================== -->
+    <!-- =================== 모달: 팔로잉 목록 (MyPageView와 동일) =================== -->
     <v-dialog v-model="showFollowingModal" max-width="500">
       <v-card class="custom-card" rounded="xl">
         <v-card-title class="text-white pa-4 d-flex justify-space-between align-center">
@@ -509,6 +351,8 @@
               v-for="followingUser in following" 
               :key="followingUser.id"
               class="user-item"
+              @click="goToUserProfile(followingUser.id)"
+              style="cursor: pointer;"
             >
               <div class="d-flex align-center gap-3">
                 <v-avatar size="40">
@@ -526,14 +370,6 @@
                     </span>
                   </div>
                 </div>
-                <v-btn
-                  color="grey"
-                  variant="outlined"
-                  size="small"
-                  @click="toggleFollow(followingUser.id)"
-                >
-                  팔로잉
-                </v-btn>
               </div>
             </div>
           </div>
@@ -548,41 +384,43 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { mypageAPI } from '@/api/mypage'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
 import dayjs from 'dayjs'
 
+const route = useRoute()
 const router = useRouter()
 
 // =================== State ===================
-const user = ref(null)
+const targetUser = ref(null)
 const portfolio = ref(null)
 const holdings = ref([])
 const transactions = ref([])
-const watchlist = ref([])
-const strategyNotes = ref([])
-const myPosts = ref([])
+const userPosts = ref([])
 const followers = ref([])
 const following = ref([])
 
 const loading = ref(false)
 const error = ref(null)
 
-const showEditModal = ref(false)
-const showNoteModal = ref(false)
-const showAllTransactions = ref(false)
 const showFollowersModal = ref(false)
 const showFollowingModal = ref(false)
+const showAllTransactions = ref(false)
 const displayLimit = 10
 
 const activeTab = ref('holdings')
 
-const editForm = ref({ nickname: '', email: '', password: '' })
-const noteForm = ref({ title: '', content: '' })
-const editingNote = ref(null)
+const myUserId = ref(null) // 로그인한 사용자 ID
+const isFollowing = ref(false)
 
 // =================== Computed ===================
+const userId = computed(() => route.params.id)
+
+const isMyProfile = computed(() => {
+  return myUserId.value && myUserId.value === parseInt(userId.value)
+})
+
 const portfolioStats = computed(() => {
   if (!portfolio.value) return null
   
@@ -604,62 +442,59 @@ const displayedTransactions = computed(() => {
 })
 
 // =================== Methods ===================
-const loadAllData = async () => {
+const loadUserData = async () => {
   loading.value = true
   error.value = null
   
   try {
-    console.log('🔄 데이터 로딩 시작...')
-    
-    const [userRes, portfolioRes, holdingsRes, txRes, postsRes] = await Promise.all([
-      mypageAPI.getMyInfo(),
-      mypageAPI.getPortfolioSummary(),
-      mypageAPI.getHoldings(),
-      mypageAPI.getTransactions(),
-      mypageAPI.getMyPosts(),
-    ])
-
-    user.value = userRes.data
-    portfolio.value = portfolioRes.data
-    holdings.value = holdingsRes.data
-    transactions.value = txRes.data
-    myPosts.value = postsRes.data
-    
-    console.log('✅ 필수 데이터 로딩 완료')
-    console.log('🔵 유저 데이터:', user.value)
-
-    // 선택적 API (에러가 나도 페이지는 로드됨)
+    // 로그인한 사용자 정보 가져오기
     try {
-      const watchlistRes = await mypageAPI.getWatchlist()
-      watchlist.value = watchlistRes.data
+      const meRes = await axios.get('/api/users/me/', { withCredentials: true })
+      myUserId.value = meRes.data.id
     } catch (e) {
-      console.warn('⚠️ 관심종목 로드 실패', e.response?.status)
-      watchlist.value = []
-    }
-    
-    try {
-      const notesRes = await mypageAPI.getStrategyNotes()
-      strategyNotes.value = notesRes.data
-    } catch (e) {
-      console.warn('⚠️ 전략메모 로드 실패', e.response?.status)
-      strategyNotes.value = []
+      console.log('로그인 안 됨')
     }
 
-    editForm.value = {
-      nickname: user.value.nickname,
-      email: user.value.email,
-      password: ''
+    // 타겟 유저 정보
+    const userRes = await axios.get(`/api/users/${userId.value}/`, { withCredentials: true })
+    targetUser.value = userRes.data
+    isFollowing.value = userRes.data.is_following || false
+
+    // 포트폴리오 (공개된 경우)
+    try {
+      const portfolioRes = await axios.get(`/api/users/${userId.value}/portfolio-summary/`, { withCredentials: true })
+      portfolio.value = portfolioRes.data
+    } catch (e) {
+      console.warn('포트폴리오 비공개')
+    }
+
+    // 보유종목
+    try {
+      const holdingsRes = await axios.get(`/api/users/${userId.value}/holdings/`, { withCredentials: true })
+      holdings.value = holdingsRes.data
+    } catch (e) {
+      holdings.value = []
+    }
+
+    // 거래내역
+    try {
+      const txRes = await axios.get(`/api/users/${userId.value}/transactions/`, { withCredentials: true })
+      transactions.value = txRes.data
+    } catch (e) {
+      transactions.value = []
+    }
+
+    // 작성한 글
+    try {
+      const postsRes = await axios.get(`/api/users/${userId.value}/posts/`, { withCredentials: true })
+      userPosts.value = postsRes.data
+    } catch (e) {
+      userPosts.value = []
     }
     
   } catch (e) {
-    console.error('❌ 데이터 로딩 실패:', e)
-    
-    if (e.response) {
-      console.error('📍 실패한 URL:', e.response.config.url)
-      error.value = `${e.response.status} 에러: ${e.response.config.url}`
-    } else {
-      error.value = '서버에 연결할 수 없습니다.'
-    }
+    console.error('유저 데이터 로드 실패:', e)
+    error.value = '사용자 정보를 불러올 수 없습니다.'
   } finally {
     loading.value = false
   }
@@ -667,7 +502,7 @@ const loadAllData = async () => {
 
 const loadFollowers = async () => {
   try {
-    const res = await mypageAPI.getFollowers()
+    const res = await axios.get(`/api/users/${userId.value}/followers/`, { withCredentials: true })
     followers.value = res.data
     showFollowersModal.value = true
   } catch (e) {
@@ -677,7 +512,7 @@ const loadFollowers = async () => {
 
 const loadFollowing = async () => {
   try {
-    const res = await mypageAPI.getFollowing()
+    const res = await axios.get(`/api/users/${userId.value}/following/`, { withCredentials: true })
     following.value = res.data
     showFollowingModal.value = true
   } catch (e) {
@@ -685,9 +520,9 @@ const loadFollowing = async () => {
   }
 }
 
-const toggleFollow = async (targetUserId) => {
+const toggleFollowUser = async () => {
   try {
-    const res = await fetch(`/api/users/${targetUserId}/follow/`, {
+    const res = await fetch(`/api/users/${userId.value}/follow/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -697,28 +532,13 @@ const toggleFollow = async (targetUserId) => {
     
     if (res.ok) {
       const data = await res.json()
+      isFollowing.value = data.is_following
       
-      // 팔로잉 목록에서 상태 업데이트
-      if (showFollowingModal.value) {
-        const index = following.value.findIndex(u => u.id === targetUserId)
-        if (index > -1 && !data.is_following) {
-          following.value.splice(index, 1)
-        }
-      }
-      
-      // 팔로워 목록에서 상태 업데이트
-      if (showFollowersModal.value) {
-        const followerUser = followers.value.find(u => u.id === targetUserId)
-        if (followerUser) {
-          followerUser.is_following = data.is_following
-        }
-      }
-      
-      // 내 팔로잉 수 업데이트
+      // 팔로워 수 업데이트
       if (data.is_following) {
-        user.value.following_count++
+        targetUser.value.followers_count++
       } else {
-        user.value.following_count--
+        targetUser.value.followers_count--
       }
     }
   } catch (e) {
@@ -742,95 +562,18 @@ const getCookie = (name) => {
   return cookieValue
 }
 
-const openEditDialog = () => {
-  editForm.value = {
-    nickname: user.value.nickname,
-    email: user.value.email,
-    password: ''
-  }
-  showEditModal.value = true
-}
-
-const updateProfile = async () => {
-  try {
-    const payload = {
-      nickname: editForm.value.nickname,
-      email: editForm.value.email
-    }
-    if (editForm.value.password) {
-      payload.password = editForm.value.password
-    }
-
-    await mypageAPI.updateProfile(user.value.id, payload)
-    alert('회원정보가 수정되었습니다.')
-    showEditModal.value = false
-    await loadAllData()
-  } catch (e) {
-    alert(e.response?.data?.detail || '수정 실패')
-  }
-}
-
-const toggleWatchlistItem = async (ticker) => {
-  try {
-    const res = await mypageAPI.toggleWatchlist(ticker)
-    if (!res.data.added) {
-      watchlist.value = watchlist.value.filter(item => item.ticker !== ticker)
-    }
-  } catch (e) {
-    console.error('Watchlist toggle error:', e)
-  }
-}
-
-const openNoteDialog = (note = null) => {
-  if (note) {
-    editingNote.value = note
-    noteForm.value = { title: note.title, content: note.content }
-  } else {
-    editingNote.value = null
-    noteForm.value = { title: '', content: '' }
-  }
-  showNoteModal.value = true
-}
-
-const saveNote = async () => {
-  try {
-    if (editingNote.value) {
-      await mypageAPI.updateStrategyNote(editingNote.value.id, noteForm.value)
-    } else {
-      await mypageAPI.createStrategyNote(noteForm.value)
-    }
-    
-    const res = await mypageAPI.getStrategyNotes()
-    strategyNotes.value = res.data
-    closeNoteModal()
-  } catch (e) {
-    alert('저장 실패')
-  }
-}
-
-const deleteNote = async (id) => {
-  if (!confirm('정말 삭제하시겠습니까?')) return
-  
-  try {
-    await mypageAPI.deleteStrategyNote(id)
-    strategyNotes.value = strategyNotes.value.filter(n => n.id !== id)
-  } catch (e) {
-    alert('삭제 실패')
-  }
-}
-
-const closeNoteModal = () => {
-  showNoteModal.value = false
-  editingNote.value = null
-  noteForm.value = { title: '', content: '' }
-}
-
 const goToStock = (ticker) => {
   router.push(`/stock/${ticker}`)
 }
 
 const goToPost = (postId) => {
   router.push(`/community/${postId}`)
+}
+
+const goToUserProfile = (userId) => {
+  showFollowersModal.value = false
+  showFollowingModal.value = false
+  router.push(`/user/${userId}`)
 }
 
 // =================== Formatters ===================
@@ -850,7 +593,14 @@ const getColor = (val) => {
 
 // =================== Lifecycle ===================
 onMounted(() => {
-  loadAllData()
+  loadUserData()
+})
+
+// URL 파라미터 변경 감지
+watch(() => route.params.id, () => {
+  if (route.name === 'user-profile') {
+    loadUserData()
+  }
 })
 </script>
 
