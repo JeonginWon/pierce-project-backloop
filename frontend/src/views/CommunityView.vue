@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router' // 👈 추가
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter() // 👈 추가
 const authStore = useAuthStore()
 const posts = ref([])
 const topInvestors = ref([])
@@ -20,7 +22,6 @@ const newComment = ref('')
 
 const API_BASE = '/api'
 
-// 🍪 쿠키에서 CSRF 토큰 가져오는 함수
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -36,7 +37,12 @@ const getCookie = (name) => {
   return cookieValue;
 }
 
-// 🔄 데이터 로드 (GET 요청은 credentials 불필요하지만 넣어도 무방)
+// 👤 프로필 이동 함수 (추가)
+const goToUserProfile = (userId) => {
+  if (!userId) return;
+  router.push(`/user/${userId}`);
+}
+
 const fetchData = async () => {
   try {
     const feedRes = await fetch(`${API_BASE}/posts/feed/`)
@@ -51,10 +57,8 @@ const handleFileChange = (e) => {
   newPostImage.value = e.target.files[0]
 }
 
-// ✨ 글 작성 (FormData)
 const createPost = async () => {
   if (!authStore.isAuthenticated) return alert('로그인 필요')
-  
   const formData = new FormData()
   formData.append('title', newPostTitle.value)
   formData.append('content', newPostContent.value)
@@ -64,24 +68,18 @@ const createPost = async () => {
   try {
     const res = await fetch(`${API_BASE}/posts/`, {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'), // 🛡️ CSRF 토큰 추가
-      },
-      credentials: 'include', // 🔑 세션 쿠키 전송 필수
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      credentials: 'include',
       body: formData
     })
-    
     if (res.ok) {
       showWriteModal.value = false
       newPostTitle.value = ''; newPostContent.value = ''; newPostTicker.value = ''; newPostImage.value = null;
       await fetchData()
-    } else {
-      alert('글 작성 실패: ' + res.status)
     }
   } catch (e) { console.error(e) }
 }
 
-// 🔍 상세 열기 & 댓글 조회
 const openDetail = async (post) => {
   selectedPost.value = post
   newComment.value = ''
@@ -91,57 +89,38 @@ const openDetail = async (post) => {
   } catch (e) { console.error(e) }
 }
 
-// 💬 댓글 작성 (JSON)
 const addComment = async () => {
   if (!authStore.isAuthenticated) return alert('로그인이 필요합니다.')
   if (!newComment.value.trim()) return
-
   try {
     const res = await fetch(`${API_BASE}/posts/${selectedPost.value.id}/comments/`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCookie('csrftoken'), // 🛡️ CSRF 토큰 추가
-      },
-      credentials: 'include', // 🔑 세션 쿠키 전송 필수
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      credentials: 'include',
       body: JSON.stringify({ content: newComment.value })
     })
-
     if (res.ok) {
       const created = await res.json()
       comments.value.push(created)
       newComment.value = ''
       selectedPost.value.comment_count++
-    } else {
-      console.error('댓글 작성 실패:', res.status)
-      alert('댓글을 등록할 수 없습니다.')
     }
   } catch (e) { console.error(e) }
 }
 
-// ❤️ 좋아요 토글
 const toggleLike = async (post, event) => {
   if (event) event.stopPropagation()
   if (!authStore.isAuthenticated) return alert('로그인이 필요합니다.')
-
   try {
     const res = await fetch(`${API_BASE}/posts/${post.id}/like/`, { 
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'), // 🛡️ CSRF 토큰 추가
-      },
-      credentials: 'include', // 🔑 세션 쿠키 전송 필수
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      credentials: 'include',
     })
-    
     if (res.ok) {
       const data = await res.json()
       post.is_liked = data.liked
       post.like_count = data.like_count
-      // 상세 모달이 열려있다면 동기화
-      if (selectedPost.value && selectedPost.value.id === post.id) {
-        selectedPost.value.is_liked = data.liked
-        selectedPost.value.like_count = data.like_count
-      }
     }
   } catch (e) { console.error(e) }
 }
@@ -169,7 +148,7 @@ onMounted(fetchData)
 
       <div v-for="post in posts" :key="post.id" class="post-card" @click="openDetail(post)">
         <div class="post-meta">
-          <div class="user-info">
+          <div class="user-info clickable-wrapper" @click.stop="goToUserProfile(post.author.id)">
             <img :src="post.author.profile_image_url || '/default-profile.png'" class="avatar" />
             <div>
               <span class="nickname">{{ post.author.nickname }}</span>
@@ -212,12 +191,10 @@ onMounted(fetchData)
         <ul class="rank-list">
           <li v-for="(user, idx) in topInvestors" :key="user.id" class="rank-item">
             <span class="rank-num">{{ idx + 1 }}</span>
-            <div class="rank-user">
+            <div class="rank-user clickable-wrapper" @click="goToUserProfile(user.id)">
               <img :src="user.profile_image_url || '/default-profile.png'" class="avatar-small" />
               <div class="rank-info">
-                <span class="rank-name">
-                  {{ getRankBadge(idx) }} {{ user.nickname }}
-                </span>
+                <span class="rank-name">{{ getRankBadge(idx) }} {{ user.nickname }}</span>
                 <span class="rank-rate red">+{{ user.total_return_rate }}%</span>
               </div>
             </div>
@@ -252,7 +229,7 @@ onMounted(fetchData)
     <div v-if="selectedPost" class="modal-overlay" @click.self="selectedPost = null">
       <div class="modal-content detail-modal">
         <div class="detail-header">
-           <div class="user-info">
+           <div class="user-info clickable-wrapper" @click.stop="goToUserProfile(selectedPost.author.id)">
             <img :src="selectedPost.author.profile_image_url || '/default-profile.png'" class="avatar" />
             <div>
               <div class="nickname">{{ selectedPost.author.nickname }}</div>
@@ -275,7 +252,9 @@ onMounted(fetchData)
           <h3>댓글 {{ comments.length }}</h3>
           <div class="comment-list">
             <div v-for="cmt in comments" :key="cmt.id" class="comment-item">
-              <span class="cmt-author">{{ cmt.author.nickname }}</span>
+              <span class="cmt-author clickable-text" @click.stop="goToUserProfile(cmt.author.id)">
+                {{ cmt.author.nickname }}
+              </span>
               <span class="cmt-content">{{ cmt.content }}</span>
             </div>
           </div>
@@ -291,19 +270,36 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
+/* ❗ 디자인 복구를 위한 핵심 스타일 */
+.clickable-wrapper {
+  position: relative;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  pointer-events: auto !important;
+}
+.clickable-wrapper:hover { opacity: 0.8; }
+/* 내부 요소들이 클릭을 방해하지 않게 함 */
+.clickable-wrapper > * { pointer-events: none; }
+
+.clickable-text {
+  color: #60a5fa;
+  font-weight: bold;
+  cursor: pointer;
+}
+.clickable-text:hover { text-decoration: underline; }
+
+/* 기존 스타일 유지 */
 .community-layout { display: flex; gap: 40px; max-width: 1100px; margin: 0 auto; padding-top: 40px; color: #f5f5f7; }
 .feed-section { flex: 2; }
 .sidebar { flex: 1; display: none; }
 @media(min-width: 900px) { .sidebar { display: block; } }
 
-/* 헤더 스타일 개선 */
 .feed-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
 .header-text h2 { font-size: 28px; margin: 0 0 8px 0; }
 .subtitle { color: #9ca3af; font-size: 15px; margin: 0; }
 .write-btn { background: #2563eb; color: white; border: none; padding: 10px 24px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
 .write-btn:hover { background: #1d4ed8; }
 
-/* 게시글 카드 */
 .post-card { background: #141414; padding: 24px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #222; cursor: pointer; transition: transform 0.2s; }
 .post-card:hover { transform: translateY(-2px); border-color: #3b82f6; }
 
@@ -312,7 +308,7 @@ onMounted(fetchData)
 .nickname { font-weight: bold; font-size: 15px; }
 .return-rate { font-size: 12px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-left: 6px; }
 .red { color: #ff4d4d; } .blue { color: #4d94ff; }
-.post-meta { display: flex; justify-content: space-between; color: #888; font-size: 13px; }
+.post-meta { display: flex; justify-content: space-between; color: #888; font-size: 13px; align-items: center; }
 
 .post-content p { color: #d1d5db; line-height: 1.6; margin: 12px 0; }
 .more-link { color: #60a5fa; font-weight: bold; margin-left: 8px; font-size: 14px; }
@@ -325,21 +321,18 @@ onMounted(fetchData)
 .action-btn { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 4px; }
 .action-btn.active { color: #ef4444; }
 
-/* 사이드바 */
 .rank-card { background: #1a1a1a; padding: 24px; border-radius: 16px; position: sticky; top: 100px; }
 .rank-list { list-style: none; padding: 0; margin-top: 20px; }
 .rank-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .rank-user { display: flex; align-items: center; gap: 12px; flex: 1; }
-.avatar-small { width: 32px; height: 32px; border-radius: 50%; }
+.avatar-small { width: 44px; height: 44px; border-radius: 50%; } /* 크기 조정 */
 .rank-info { display: flex; flex-direction: column; font-size: 14px; }
 .rank-name { font-weight: bold; }
 .follow-btn { background: #333; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 
-/* 모달 공통 */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(4px); }
 .modal-content { background: #1f2937; padding: 32px; border-radius: 20px; color: #f5f5f7; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
 
-/* ✨ 글쓰기 모달 확장 스타일 */
 .write-modal { width: 90%; max-width: 800px; height: auto; max-height: 90vh; }
 .form-group { margin-bottom: 16px; }
 .input-full { width: 100%; background: #111827; border: 1px solid #374151; color: white; padding: 14px; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
@@ -350,7 +343,6 @@ onMounted(fetchData)
 .cancel-btn { background: #374151; color: white; border: none; padding: 12px 24px; border-radius: 12px; cursor: pointer; font-size: 16px; }
 .submit-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; }
 
-/* 상세 모달 */
 .detail-modal { width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; }
 .detail-title { font-size: 24px; margin: 20px 0; }
 .detail-body { font-size: 16px; line-height: 1.7; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 30px; }

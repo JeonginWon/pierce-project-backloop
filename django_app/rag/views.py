@@ -237,7 +237,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 "amount": float(t.amount)
             })
         return Response(data)
-
+    @action(detail=True, methods=["get"], url_path="test")
+    def test_action(self, request, pk=None):
+        return Response({"message": "테스트 성공", "user_id": pk})
     @action(detail=False, methods=["get"], url_path="me/posts")
     def posts(self, request):
         user = get_current_user(request)
@@ -299,7 +301,123 @@ class UserViewSet(viewsets.ModelViewSet):
         # 수익률 상위 5명 조회
         top_users = User.objects.all().order_by('-total_return_rate')[:5]
         return Response(UserReadSerializer(top_users, many=True).data)
+    
+        # =================== 특정 유저의 포트폴리오 ===================
 
+    @action(detail=True, methods=["get"], url_path="portfolio-summary")
+    def user_portfolio_summary(self, request, pk=None):
+        target_user = self.get_object()
+        holdings = StockHolding.objects.filter(user=target_user)
+        
+        if not holdings.exists():
+            return Response({
+                "user": UserReadSerializer(target_user, context={'request': request}).data,
+                "portfolio": {
+                    "total_invested": 0,
+                    "total_eval": 0,
+                    "total_profit": 0,
+                    "total_return_rate": 0.0,
+                },
+                "holdings_count": 0,
+            })
+        
+        company_codes = [h.company_id for h in holdings]
+        latest_prices = StockPrice.objects.filter(
+            company_id__in=company_codes
+        ).order_by('company', '-record_time').distinct('company')
+        price_map = {p.company_id: p.close for p in latest_prices}
+        
+        total_invested = Decimal("0")
+        total_eval = Decimal("0")
+        for h in holdings:
+            invested = h.average_price * h.quantity
+            total_invested += invested
+            current_price = price_map.get(h.company_id, h.average_price)
+            total_eval += current_price * h.quantity
+        
+        total_profit = total_eval - total_invested
+        total_return_rate = (total_profit / total_invested * 100) if total_invested > 0 else 0
+        
+        return Response({
+            "user": UserReadSerializer(target_user, context={'request': request}).data,
+            "portfolio": {
+                "total_invested": float(total_invested),
+                "total_eval": float(total_eval),
+                "total_profit": float(total_profit),
+                "total_return_rate": float(round(total_return_rate, 2)),
+            },
+            "holdings_count": holdings.count(),
+        })
+    
+    @action(detail=True, methods=["get"], url_path="holdings")
+    def user_holdings(self, request, pk=None):
+        target_user = self.get_object()
+        holdings = StockHolding.objects.filter(user=target_user).select_related('company')
+        
+        if not holdings.exists():
+            return Response([])
+        
+        company_codes = [h.company_id for h in holdings]
+        latest_prices = StockPrice.objects.filter(
+            company_id__in=company_codes
+        ).order_by('company', '-record_time').distinct('company')
+        price_map = {p.company_id: p.close for p in latest_prices}
+        
+        result = []
+        for h in holdings:
+            invested_amount = h.average_price * h.quantity
+            current_price = price_map.get(h.company_id, h.average_price)
+            eval_amount = current_price * h.quantity
+            profit = eval_amount - invested_amount
+            return_rate = (profit / invested_amount * 100) if invested_amount > 0 else 0.0
+            
+            result.append({
+                "ticker": h.company_id,
+                "company_name": h.company.name,
+                "quantity": h.quantity,
+                "average_buy_price": float(h.average_price),
+                "invested_amount": float(invested_amount),
+                "current_price": float(current_price),
+                "eval_amount": float(eval_amount),
+                "profit": float(profit),
+                "return_rate": round(float(return_rate), 2),
+                "last_updated": h.updated_at,
+            })
+            
+        return Response(result)
+    @action(detail=True, methods=["get"], url_path="transactions")
+    def user_transactions(self, request, pk=None):
+        target_user = self.get_object()
+        qs = Transaction.objects.filter(user=target_user).select_related('company').order_by("-created_at")
+        
+        limit = request.query_params.get("limit")
+        if limit:
+            qs = qs[:int(limit)]
+        
+        data = []
+        for t in qs:
+            data.append({
+                "ticker": t.company_id,
+                "company_name": t.company.name,
+                "transaction_datetime": t.created_at,
+                "transaction_type": t.type,
+                "price": float(t.price),
+                "quantity": t.quantity,
+                "amount": float(t.amount)
+            })
+        
+        return Response(data)
+    @action(detail=True, methods=["get"], url_path="followers")
+    def user_followers(self, request, pk=None):
+        target_user = self.get_object()
+        users = [r.follower for r in target_user.followers.select_related('follower')]
+        return Response(UserReadSerializer(users, many=True, context={'request': request}).data)
+    
+    @action(detail=True, methods=["get"], url_path="following")
+    def user_following(self, request, pk=None):
+        target_user = self.get_object()
+        users = [r.following for r in target_user.following.select_related('following')]
+        return Response(UserReadSerializer(users, many=True, context={'request': request}).data)
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all().select_related("author").annotate(
         comment_count=Count("comments", distinct=True),

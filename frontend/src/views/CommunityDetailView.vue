@@ -7,14 +7,14 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-const post = ref(null)
+// Devtools 데이터 구조인 selectedPost를 사용합니다.
+const selectedPost = ref(null)
 const comments = ref([])
 const newComment = ref('')
 const loading = ref(true)
 
 const API_BASE = '/api'
 
-// 🍪 CSRF 토큰 가져오기
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -32,21 +32,18 @@ const getCookie = (name) => {
 
 const postId = computed(() => route.params.id)
 
-// 📥 게시글 상세 & 댓글 불러오기
 const fetchPostDetail = async () => {
   loading.value = true
   try {
-    // 게시글 상세 조회
     const postRes = await fetch(`${API_BASE}/posts/${postId.value}/`)
     if (postRes.ok) {
-      post.value = await postRes.json()
+      selectedPost.value = await postRes.json()
     } else {
       alert('게시글을 찾을 수 없습니다.')
       router.push('/community')
       return
     }
 
-    // 댓글 조회
     const commentsRes = await fetch(`${API_BASE}/posts/${postId.value}/comments/`)
     if (commentsRes.ok) {
       comments.value = await commentsRes.json()
@@ -58,14 +55,22 @@ const fetchPostDetail = async () => {
   }
 }
 
-// 💬 댓글 작성
+// 👤 프로필 이동 함수
+const goToUserProfile = (userId) => {
+  console.log("유저 프로필 이동 시도. ID:", userId)
+  if (!userId) {
+    console.warn("userId가 없어 이동할 수 없습니다.")
+    return
+  }
+  router.push(`/user/${userId}`)
+}
+
 const addComment = async () => {
   if (!authStore.isAuthenticated) {
     alert('로그인이 필요합니다.')
     router.push('/login')
     return
   }
-  
   if (!newComment.value.trim()) return
 
   try {
@@ -83,39 +88,32 @@ const addComment = async () => {
       const created = await res.json()
       comments.value.push(created)
       newComment.value = ''
-      post.value.comment_count++
-    } else {
-      alert('댓글 등록에 실패했습니다.')
+      if (selectedPost.value) selectedPost.value.comment_count++
     }
   } catch (e) {
     console.error('댓글 등록 실패:', e)
   }
 }
 
-// ❤️ 좋아요 토글
 const toggleLike = async () => {
   if (!authStore.isAuthenticated) {
     alert('로그인이 필요합니다.')
     router.push('/login')
     return
   }
-
   try {
     const res = await fetch(`${API_BASE}/posts/${postId.value}/like/`, { 
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-      },
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
       credentials: 'include',
     })
-    
     if (res.ok) {
       const data = await res.json()
-      post.value.is_liked = data.liked
-      post.value.like_count = data.like_count
+      selectedPost.value.is_liked = data.liked
+      selectedPost.value.like_count = data.like_count
     }
   } catch (e) {
-    console.error('좋아요 처리 실패:', e)
+    console.error('좋아요 실패:', e)
   }
 }
 
@@ -130,334 +128,141 @@ onMounted(() => {
 
 <template>
   <div class="detail-page">
-    <!-- 로딩 -->
     <div v-if="loading" class="loading-area">
       <p>게시글을 불러오는 중...</p>
     </div>
 
-    <!-- 게시글 상세 -->
-    <div v-else-if="post" class="detail-container">
+    <div v-else-if="selectedPost" class="detail-container">
       <button @click="goBack" class="back-btn">← 목록으로</button>
 
       <div class="detail-card">
-        <!-- 헤더 -->
         <div class="detail-header">
-          <div class="user-info">
-            <img :src="post.author.profile_image_url || '/default-profile.png'" class="avatar" />
-            <div>
-              <div class="nickname">{{ post.author.nickname }}</div>
+          <button 
+            type="button" 
+            class="user-info-btn" 
+            @click.stop="goToUserProfile(selectedPost.author.id)"
+          >
+            <img 
+              :src="selectedPost.author.profile_image_url || '/default-profile.png'" 
+              class="avatar" 
+            />
+            <div class="user-text">
+              <div class="nickname">{{ selectedPost.author.nickname }}</div>
               <div class="meta-info">
-                <span class="return-rate" :class="post.author.total_return_rate > 0 ? 'red' : 'blue'">
-                  {{ post.author.total_return_rate > 0 ? '+' : '' }}{{ post.author.total_return_rate }}%
+                <span class="return-rate" :class="selectedPost.author.total_return_rate > 0 ? 'red' : 'blue'">
+                  {{ selectedPost.author.total_return_rate > 0 ? '+' : '' }}{{ selectedPost.author.total_return_rate }}%
                 </span>
-                <span class="date">{{ new Date(post.created_at).toLocaleString() }}</span>
+                <span class="date">{{ new Date(selectedPost.created_at).toLocaleString() }}</span>
               </div>
             </div>
-          </div>
+          </button>
         </div>
 
-        <!-- 제목 -->
         <h1 class="detail-title">
-          <span v-if="post.ticker" class="ticker-badge">{{ post.ticker }}</span>
-          {{ post.title }}
+          <span v-if="selectedPost.ticker" class="ticker-badge">{{ selectedPost.ticker }}</span>
+          {{ selectedPost.title }}
         </h1>
 
-        <!-- 본문 -->
         <div class="detail-body">
-          <p>{{ post.content }}</p>
-          <img v-if="post.image_url" :src="post.image_url" class="detail-image" />
+          <p>{{ selectedPost.content }}</p>
+          <img v-if="selectedPost.image_url" :src="selectedPost.image_url" class="detail-image" />
         </div>
 
-        <!-- 좋아요 -->
         <div class="detail-actions">
-          <button 
-            class="action-btn" 
-            :class="{ active: post.is_liked }" 
-            @click="toggleLike"
-          >
-            {{ post.is_liked ? '❤️' : '🤍' }} 좋아요 {{ post.like_count }}
+          <button class="action-btn" :class="{ active: selectedPost.is_liked }" @click.stop="toggleLike">
+            {{ selectedPost.is_liked ? '❤️' : '🤍' }} 좋아요 {{ selectedPost.like_count }}
           </button>
         </div>
 
         <hr class="divider"/>
 
-        <!-- 댓글 섹션 -->
         <div class="comments-section">
           <h3>댓글 {{ comments.length }}</h3>
           <div class="comment-list">
             <div v-for="cmt in comments" :key="cmt.id" class="comment-item">
-              <span class="cmt-author">{{ cmt.author.nickname }}</span>
+              <button 
+                type="button" 
+                class="cmt-author-btn" 
+                @click.stop="goToUserProfile(cmt.author.id)"
+              >
+                {{ cmt.author.nickname }}
+              </button>
               <span class="cmt-content">{{ cmt.content }}</span>
             </div>
-            <div v-if="comments.length === 0" class="no-comments">
-              첫 댓글을 남겨보세요!
-            </div>
+            <div v-if="comments.length === 0" class="no-comments">첫 댓글을 남겨보세요!</div>
           </div>
           <div class="comment-input-area">
-            <input 
-              v-model="newComment" 
-              type="text" 
-              placeholder="댓글을 남겨보세요..." 
-              @keyup.enter="addComment"
-            />
+            <input v-model="newComment" type="text" placeholder="댓글을 남겨보세요..." @keyup.enter="addComment" />
             <button @click="addComment">등록</button>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- 에러 -->
-    <div v-else class="error-area">
-      <p>게시글을 불러올 수 없습니다.</p>
-      <button @click="goBack" class="back-btn">목록으로</button>
-    </div>
   </div>
 </template>
 
 <style scoped>
-.detail-page {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 40px 20px;
-  color: #f5f5f7;
-}
+/* ❗ 핵심 레이어 설정 */
+.detail-page { max-width: 800px; margin: 0 auto; padding: 40px 20px; color: #f5f5f7; position: relative; z-index: 1; }
+.detail-card { background: #141414; padding: 32px; border-radius: 16px; border: 1px solid #222; }
 
-.loading-area,
-.error-area {
-  text-align: center;
-  padding: 60px 20px;
-  color: #9ca3af;
-}
-
-.back-btn {
-  background: #374151;
-  color: white;
+/* ❗ 유저 정보 버튼 스타일 (이미지/텍스트가 클릭을 방해하지 않게 처리) */
+.user-info-btn {
+  background: none;
   border: none;
-  padding: 10px 20px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  text-align: left;
   border-radius: 12px;
-  cursor: pointer;
-  font-size: 14px;
-  margin-bottom: 24px;
   transition: background 0.2s;
+  color: inherit;
+  font-family: inherit;
 }
 
-.back-btn:hover {
-  background: #4b5563;
+.user-info-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ❗ 버튼 내부 요소들은 클릭 이벤트를 통과시켜야 함 */
+.avatar, .user-text, .nickname, .meta-info, .return-rate, .date {
+  pointer-events: none !important;
 }
 
-.detail-card {
-  background: #141414;
-  padding: 32px;
-  border-radius: 16px;
-  border: 1px solid #222;
-}
+.avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.nickname { font-weight: bold; font-size: 16px; color: white; margin-bottom: 2px; }
+.meta-info { display: flex; gap: 10px; font-size: 13px; color: #9ca3af; }
 
-.detail-header {
-  margin-bottom: 24px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-}
-
-.nickname {
-  font-weight: bold;
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-.meta-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  color: #9ca3af;
-}
-
-.return-rate {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.red {
-  color: #ff4d4d;
-}
-
-.blue {
-  color: #4d94ff;
-}
-
-.date {
-  color: #6b7280;
-}
-
-.detail-title {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0 0 24px 0;
-  line-height: 1.4;
-}
-
-.ticker-badge {
-  font-size: 14px;
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  padding: 4px 10px;
-  border-radius: 6px;
-  margin-right: 8px;
-  vertical-align: middle;
-}
-
-.detail-body {
-  font-size: 16px;
-  line-height: 1.8;
-  color: #e5e7eb;
-  white-space: pre-wrap;
-  margin-bottom: 32px;
-}
-
-.detail-image {
-  width: 100%;
-  max-height: 500px;
-  object-fit: cover;
-  border-radius: 12px;
-  margin-top: 24px;
-}
-
-.detail-actions {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 32px;
-}
-
-.action-btn {
-  background: #1f2937;
-  border: 1px solid #374151;
-  color: #9ca3af;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  border-color: #4b5563;
-}
-
-.action-btn.active {
-  color: #ef4444;
-  border-color: #ef4444;
-}
-
-.divider {
-  border: 0;
-  border-top: 1px solid #374151;
-  margin: 32px 0;
-}
-
-.comments-section h3 {
-  font-size: 18px;
-  margin-bottom: 20px;
-  color: #f5f5f7;
-}
-
-.comment-list {
-  max-height: 400px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-}
-
-.comment-item {
-  background: #1f2937;
-  padding: 14px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.cmt-author {
-  font-weight: bold;
-  color: #60a5fa;
+/* 댓글 작성자 버튼 스타일 */
+.cmt-author-btn {
+  background: none;
+  border: none;
+  padding: 0;
   margin-right: 10px;
-}
-
-.cmt-content {
-  color: #e5e7eb;
-}
-
-.no-comments {
-  text-align: center;
-  padding: 40px;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.comment-input-area {
-  display: flex;
-  gap: 10px;
-}
-
-.comment-input-area input {
-  flex: 1;
-  background: #1f2937;
-  border: 1px solid #374151;
-  color: white;
-  padding: 14px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.comment-input-area input:focus {
-  outline: none;
-  border-color: #3b82f6;
-}
-
-.comment-input-area button {
-  background: #3b82f6;
-  color: white;
-  border: none;
-  padding: 0 24px;
-  border-radius: 8px;
-  cursor: pointer;
   font-weight: bold;
-  transition: background 0.2s;
+  color: #60a5fa;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  pointer-events: auto;
 }
+.cmt-author-btn:hover { text-decoration: underline; }
 
-.comment-input-area button:hover {
-  background: #2563eb;
-}
-
-/* 스크롤바 스타일 */
-.comment-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.comment-list::-webkit-scrollbar-track {
-  background: #1f2937;
-  border-radius: 3px;
-}
-
-.comment-list::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 3px;
-}
-
-.comment-list::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
+/* 기존 UI 스타일 유지 */
+.loading-area { text-align: center; padding: 60px; color: #9ca3af; }
+.back-btn { background: #374151; color: white; border: none; padding: 10px 20px; border-radius: 12px; cursor: pointer; margin-bottom: 24px; }
+.red { color: #ff4d4d; }
+.blue { color: #4d94ff; }
+.detail-title { font-size: 26px; font-weight: bold; margin: 24px 0; line-height: 1.4; }
+.ticker-badge { background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 4px 10px; border-radius: 6px; font-size: 14px; margin-right: 8px; }
+.detail-body { line-height: 1.8; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 30px; }
+.detail-image { width: 100%; border-radius: 12px; margin-top: 20px; }
+.action-btn { background: #1f2937; border: 1px solid #374151; color: #9ca3af; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+.action-btn.active { color: #ef4444; border-color: #ef4444; }
+.divider { border: 0; border-top: 1px solid #333; margin: 32px 0; }
+.comment-item { background: #1f2937; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
+.comment-input-area { display: flex; gap: 8px; margin-top: 20px; }
+.comment-input-area input { flex: 1; background: #1f2937; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; }
+.comment-input-area button { background: #3b82f6; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; }
 </style>
