@@ -386,7 +386,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
+import axios from '@/api/index'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -449,20 +449,20 @@ const loadUserData = async () => {
   try {
     // 로그인한 사용자 정보 가져오기
     try {
-      const meRes = await axios.get('/api/users/me/', { withCredentials: true })
+      const meRes = await axios.get('/users/me/', { withCredentials: true })
       myUserId.value = meRes.data.id
     } catch (e) {
       console.log('로그인 안 됨')
     }
 
     // 타겟 유저 정보
-    const userRes = await axios.get(`/api/users/${userId.value}/`, { withCredentials: true })
+    const userRes = await axios.get(`/users/${userId.value}/`, { withCredentials: true })
     targetUser.value = userRes.data
     isFollowing.value = userRes.data.is_following || false
 
     // 포트폴리오 (공개된 경우)
     try {
-      const portfolioRes = await axios.get(`/api/users/${userId.value}/portfolio-summary/`, { withCredentials: true })
+      const portfolioRes = await axios.get(`/users/${userId.value}/portfolio-summary/`, { withCredentials: true })
       portfolio.value = portfolioRes.data
     } catch (e) {
       console.warn('포트폴리오 비공개')
@@ -470,7 +470,7 @@ const loadUserData = async () => {
 
     // 보유종목
     try {
-      const holdingsRes = await axios.get(`/api/users/${userId.value}/holdings/`, { withCredentials: true })
+      const holdingsRes = await axios.get(`/users/${userId.value}/holdings/`, { withCredentials: true })
       holdings.value = holdingsRes.data
     } catch (e) {
       holdings.value = []
@@ -478,7 +478,7 @@ const loadUserData = async () => {
 
     // 거래내역
     try {
-      const txRes = await axios.get(`/api/users/${userId.value}/transactions/`, { withCredentials: true })
+      const txRes = await axios.get(`/users/${userId.value}/transactions/`, { withCredentials: true })
       transactions.value = txRes.data
     } catch (e) {
       transactions.value = []
@@ -486,7 +486,7 @@ const loadUserData = async () => {
 
     // 작성한 글
     try {
-      const postsRes = await axios.get(`/api/users/${userId.value}/posts/`, { withCredentials: true })
+      const postsRes = await axios.get(`/users/${userId.value}/posts/`, { withCredentials: true })
       userPosts.value = postsRes.data
     } catch (e) {
       userPosts.value = []
@@ -502,7 +502,7 @@ const loadUserData = async () => {
 
 const loadFollowers = async () => {
   try {
-    const res = await axios.get(`/api/users/${userId.value}/followers/`, { withCredentials: true })
+    const res = await axios.get(`/users/${userId.value}/followers/`, { withCredentials: true })
     followers.value = res.data
     showFollowersModal.value = true
   } catch (e) {
@@ -512,7 +512,7 @@ const loadFollowers = async () => {
 
 const loadFollowing = async () => {
   try {
-    const res = await axios.get(`/api/users/${userId.value}/following/`, { withCredentials: true })
+    const res = await axios.get(`/users/${userId.value}/following/`, { withCredentials: true })
     following.value = res.data
     showFollowingModal.value = true
   } catch (e) {

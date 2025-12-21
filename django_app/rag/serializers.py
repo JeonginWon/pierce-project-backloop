@@ -131,11 +131,22 @@ class LatestNewsSerializer(serializers.ModelSerializer):
 
 # serializers.py 수정
 class WatchlistItemSerializer(serializers.ModelSerializer):
+    company_name = serializers.SerializerMethodField()
+    
+    def get_company_name(self, obj):
+        if obj.company:
+            return obj.company.name
+        try:
+            company = Company.objects.get(code=obj.ticker)
+            return company.name
+        except Company.DoesNotExist:
+            return obj.ticker
+    
     class Meta:
         model = WatchlistItem
-        # 명확하게 ticker 필드를 포함시킵니다.
-        fields = ("id", "ticker", "created_at") 
+        fields = ("id", "ticker", "company_name", "memo", "created_at")
         read_only_fields = ("id", "user", "created_at")
+        
 class StrategyNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = StrategyNote

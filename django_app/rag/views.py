@@ -801,15 +801,19 @@ class WatchlistItemViewSet(viewsets.ModelViewSet):
     def toggle(self, request):
         user = get_current_user(request)
         ticker = request.data.get('ticker')
-        if not ticker: return Response(status=400)
+        if not ticker: 
+            return Response(status=400)
         
-        # 이미 있으면 삭제, 없으면 생성
         item = WatchlistItem.objects.filter(user=user, ticker=ticker).first()
         if item:
             item.delete()
             return Response({'added': False})
         else:
-            WatchlistItem.objects.create(user=user, ticker=ticker)
+            try:
+                company = Company.objects.get(code=ticker)
+                WatchlistItem.objects.create(user=user, ticker=ticker, company=company)
+            except Company.DoesNotExist:
+                WatchlistItem.objects.create(user=user, ticker=ticker)
             return Response({'added': True})
 
 class StrategyNoteViewSet(viewsets.ModelViewSet):

@@ -84,6 +84,7 @@ class StockPrice(models.Model):
     class Meta:
         db_table = 'stock_price'
         ordering = ['-record_time']
+        unique_together = [['company', 'record_time']]
         # Airflow가 관리하는 테이블이므로 마이그레이션 관리 비활성화 권장 (선택사항)
         # managed = False 
 
@@ -151,6 +152,7 @@ class LatestNews(models.Model):
     class Meta:
         # 👇 [수정] 정렬 기준도 최신순으로
         ordering = ['-news_collection_date'] 
+        
 
     def __str__(self):
         return self.title
@@ -162,6 +164,15 @@ class LatestNews(models.Model):
 class WatchlistItem(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="watchlist")
     ticker = models.CharField(max_length=12, db_index=True)
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        db_column='company_code',  # 👈 'ticker' 대신 'company_code' 사용!
+        to_field='code',
+        null=True,
+        blank=True,
+        related_name='watchlist_items'
+    )
     memo = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -169,6 +180,7 @@ class WatchlistItem(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["user", "ticker"], name="unique_watchlist_per_user")
         ]
+        db_table = 'watchlist'  # 👈 테이블명도 명시
 
 class StrategyNote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="strategy_notes")
