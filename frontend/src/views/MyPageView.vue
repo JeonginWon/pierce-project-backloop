@@ -18,11 +18,11 @@
         <v-col cols="12" md="4">
           <v-card class="custom-card pa-6 h-100" rounded="xl" variant="outlined">
             <div class="d-flex flex-column align-center">
-              <v-avatar size="100" class="mb-4 border-subtle shadow-lg">
+              <v-avatar size="100" class="mb-4 border-subtle">
                 <img 
-                  :src="user?.profile_image_url || user?.profile_image || `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=2563eb&color=fff&size=200`"
+                  :src="user?.profile_image_url || user?.profile_image || '/default-profile.png'" 
+                  class="avatar"
                   style="width: 100%; height: 100%; object-fit: cover;"
-                  alt="프로필"
                 />
               </v-avatar>
               
@@ -66,7 +66,6 @@
                 :color="getColor(portfolioStats.returnRate)" 
                 variant="tonal" 
                 label
-                class="font-weight-bold"
               >
                 수익률 {{ portfolioStats.returnRate }}%
               </v-chip>
@@ -259,17 +258,20 @@
           </v-window-item>
 
           <v-window-item value="watchlist">
-            <v-row v-if="watchlist.length > 0" class="mt-2">
+            <v-row v-if="watchlist.length > 0">
               <v-col 
                 v-for="item in watchlist" 
                 :key="item.ticker"
-                cols="12" sm="6" md="4"
+                cols="12" 
+                sm="6" 
+                md="4"
               >
                 <v-card 
-                  class="watchlist-card" 
-                  rounded="xl" 
-                  variant="flat"
+                  class="custom-card pa-4" 
+                  rounded="lg" 
+                  variant="outlined"
                   @click="goToStock(item.ticker)"
+                  style="cursor: pointer;"
                 >
                   <div class="d-flex align-center pa-5">
                     <v-avatar size="52" class="mr-4 shadow-sm">
@@ -304,14 +306,14 @@
                       </div>
                     </div>
                   </div>
+                  <span class="text-caption text-grey">종목 상세보기</span>
                 </v-card>
               </v-col>
             </v-row>
             
             <div v-else class="text-center py-16 text-grey">
-              <v-icon icon="mdi-star-outline" size="64" color="grey-darken-3" class="mb-4"></v-icon>
-              <div class="text-h6">관심 종목이 비어있습니다</div>
-              <div class="text-body-2">별표를 눌러 나만의 리스트를 만들어보세요.</div>
+              <v-icon icon="mdi-star-outline" size="48" class="mb-2"></v-icon>
+              <div>관심 종목이 없습니다.</div>
             </div>
           </v-window-item>
 
@@ -514,9 +516,7 @@ const holdings = ref([])
 const transactions = ref([])
 const watchlist = ref([])
 const strategyNotes = ref([])
-const myPosts = ref([])
-const followers = ref([])
-const following = ref([])
+const myPosts = ref([])  // 👈 추가
 
 const loading = ref(false)
 const error = ref(null)
@@ -524,8 +524,6 @@ const error = ref(null)
 const showEditModal = ref(false)
 const showNoteModal = ref(false)
 const showAllTransactions = ref(false)
-const showFollowersModal = ref(false)
-const showFollowingModal = ref(false)
 const displayLimit = 10
 
 const activeTab = ref('holdings')
@@ -564,15 +562,21 @@ const loadAllData = async () => {
       mypageAPI.getPortfolioSummary(),
       mypageAPI.getHoldings(),
       mypageAPI.getTransactions(),
-      mypageAPI.getMyPosts(),
+      mypageAPI.getMyPosts(),  // 👈 추가
     ])
 
     user.value = userRes.data
     portfolio.value = portfolioRes.data
     holdings.value = holdingsRes.data
     transactions.value = txRes.data
-    myPosts.value = postsRes.data
+    myPosts.value = postsRes.data  // 👈 추가
     
+    console.log('✅ 필수 데이터 로딩 완료')
+
+    // 선택적 API (에러가 나도 페이지는 로드됨)
+    try {
+      const watchlistRes = await mypageAPI.getWatchlist()
+      watchlist.value = watchlistRes.data
     // ✅ 투자 전략 메모 로드 (Pagination 대응)
     try {
       const notesRes = await mypageAPI.getStrategyNotes()
@@ -724,8 +728,25 @@ const closeNoteModal = () => {
   noteForm.value = { title: '', content: '' }
 }
 
-const goToStock = (ticker) => router.push(`/stock/${ticker}`)
-const goToPost = (postId) => router.push(`/community/${postId}`)
+const goToStock = (ticker) => {
+  router.push(`/stock/${ticker}`)
+}
+
+// 👇 추가: 게시글 상세로 이동
+const goToPost = (postId) => {
+  router.push({ 
+    name: 'community-detail',  // 👈 라우터에 정의된 name 사용
+    params: { id: postId } 
+  })
+}
+// =================== Formatters ===================
+const formatPrice = (value) => {
+  return value?.toLocaleString() || '0'
+}
+
+const formatDate = (dateStr) => {
+  return dayjs(dateStr).format('YYYY.MM.DD HH:mm')
+}
 
 const formatPrice = (value) => value?.toLocaleString() || '0'
 const formatDate = (dateStr) => dayjs(dateStr).format('YYYY.MM.DD HH:mm')

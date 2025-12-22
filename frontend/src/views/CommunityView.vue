@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router' // 👈 추가
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const router = useRouter() // 👈 추가
+const router = useRouter()
 const authStore = useAuthStore()
 const posts = ref([])
 const topInvestors = ref([])
@@ -37,10 +37,30 @@ const getCookie = (name) => {
   return cookieValue;
 }
 
-// 👤 프로필 이동 함수 (추가)
 const goToUserProfile = (userId) => {
   if (!userId) return;
   router.push(`/user/${userId}`);
+}
+
+// 📈 색상 결정 (0일 때 회색 처리)
+const getReturnColor = (val) => {
+  const num = parseFloat(val)
+  if (num > 0) return 'red'
+  if (num < 0) return 'blue'
+  return 'grey'
+}
+
+// 🔢 % 포맷
+const formatReturnRate = (val) => {
+  if (val === undefined || val === null) return '0'
+  const num = parseFloat(val)
+  return num > 0 ? `+${num}` : num.toString()
+}
+
+// 💰 원화 포맷 (추가됨!)
+const formatPrice = (val) => {
+  if (!val) return '0'
+  return Math.floor(val).toLocaleString()
 }
 
 const fetchData = async () => {
@@ -152,8 +172,8 @@ onMounted(fetchData)
             <img :src="post.author.profile_image_url || '/default-profile.png'" class="avatar" />
             <div>
               <span class="nickname">{{ post.author.nickname }}</span>
-              <span class="return-rate" :class="post.author.total_return_rate > 0 ? 'red' : 'blue'">
-                {{ post.author.total_return_rate > 0 ? '+' : '' }}{{ post.author.total_return_rate }}%
+              <span class="return-rate" :class="getReturnColor(post.author.total_return_rate)">
+                실현 {{ formatReturnRate(post.author.total_return_rate) }}%
               </span>
             </div>
           </div>
@@ -187,7 +207,7 @@ onMounted(fetchData)
 
     <aside class="sidebar">
       <div class="rank-card">
-        <h3>🏆 수익금 상위 투자자 TOP 5</h3>
+        <h3>🏆 실현수익 상위 투자자</h3>
         <ul class="rank-list">
           <li v-for="(user, idx) in topInvestors" :key="user.id" class="rank-item">
             <span class="rank-num">{{ idx + 1 }}</span>
@@ -195,10 +215,14 @@ onMounted(fetchData)
               <img :src="user.profile_image_url || '/default-profile.png'" class="avatar-small" />
               <div class="rank-info">
                 <span class="rank-name">{{ getRankBadge(idx) }} {{ user.nickname }}</span>
-                <span class="rank-rate red">+{{ user.total_return_rate }}%</span>
+                <div class="rank-profit-group">
+                  <span class="rank-rate" :class="getReturnColor(user.total_return_rate)">
+                    {{ formatReturnRate(user.total_return_rate) }}%
+                  </span>
+                  <span class="rank-amount">{{ formatPrice(user.realized_profit) }}원</span>
+                </div>
               </div>
             </div>
-            <button class="follow-btn">팔로우</button>
           </li>
         </ul>
       </div>
@@ -265,93 +289,70 @@ onMounted(fetchData)
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
 <style scoped>
-/* ❗ 디자인 복구를 위한 핵심 스타일 */
-.clickable-wrapper {
-  position: relative;
-  cursor: pointer;
-  transition: opacity 0.2s;
-  pointer-events: auto !important;
-}
+/* 기존 스타일 유지 및 추가 */
+.rank-profit-group { display: flex; align-items: center; gap: 8px; }
+.rank-amount { font-size: 12px; color: #888; }
+
+/* 🟢 수익률 색상 스타일 보강 */
+.red { color: #ff4d4d !important; } 
+.blue { color: #4d94ff !important; }
+.grey { color: #888 !important; }
+
+/* ... 나머지 기존 스타일 코드 ... */
+.clickable-wrapper { position: relative; cursor: pointer; transition: opacity 0.2s; pointer-events: auto !important; }
 .clickable-wrapper:hover { opacity: 0.8; }
-/* 내부 요소들이 클릭을 방해하지 않게 함 */
 .clickable-wrapper > * { pointer-events: none; }
-
-.clickable-text {
-  color: #60a5fa;
-  font-weight: bold;
-  cursor: pointer;
-}
+.clickable-text { color: #60a5fa; font-weight: bold; cursor: pointer; }
 .clickable-text:hover { text-decoration: underline; }
-
-/* 기존 스타일 유지 */
 .community-layout { display: flex; gap: 40px; max-width: 1100px; margin: 0 auto; padding-top: 40px; color: #f5f5f7; }
 .feed-section { flex: 2; }
 .sidebar { flex: 1; display: none; }
 @media(min-width: 900px) { .sidebar { display: block; } }
-
 .feed-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
 .header-text h2 { font-size: 28px; margin: 0 0 8px 0; }
 .subtitle { color: #9ca3af; font-size: 15px; margin: 0; }
 .write-btn { background: #2563eb; color: white; border: none; padding: 10px 24px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
 .write-btn:hover { background: #1d4ed8; }
-
 .post-card { background: #141414; padding: 24px; border-radius: 16px; margin-bottom: 20px; border: 1px solid #222; cursor: pointer; transition: transform 0.2s; }
 .post-card:hover { transform: translateY(-2px); border-color: #3b82f6; }
-
 .user-info { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; }
 .nickname { font-weight: bold; font-size: 15px; }
-.return-rate { font-size: 12px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-left: 6px; }
-.red { color: #ff4d4d; } .blue { color: #4d94ff; }
+.return-rate { font-size: 12px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-left: 6px; border: 1px solid transparent; }
+.red { border-color: rgba(255, 77, 77, 0.3); }
+.blue { border-color: rgba(77, 148, 255, 0.3); }
 .post-meta { display: flex; justify-content: space-between; color: #888; font-size: 13px; align-items: center; }
-
 .post-content p { color: #d1d5db; line-height: 1.6; margin: 12px 0; }
 .more-link { color: #60a5fa; font-weight: bold; margin-left: 8px; font-size: 14px; }
 .ticker-badge { font-size: 12px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 6px; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
-
 .post-image-wrapper { margin-top: 12px; border-radius: 12px; overflow: hidden; }
 .post-image { width: 100%; max-height: 400px; object-fit: cover; display: block; }
-
 .post-actions { display: flex; gap: 16px; margin-top: 16px; color: #9ca3af; font-size: 14px; }
 .action-btn { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 4px; }
 .action-btn.active { color: #ef4444; }
-
-.rank-card { background: #1a1a1a; padding: 24px; border-radius: 16px; position: sticky; top: 100px; }
+.rank-card { background: #1a1a1a; padding: 24px; border-radius: 16px; position: sticky; top: 100px; border: 1px solid #222; }
 .rank-list { list-style: none; padding: 0; margin-top: 20px; }
 .rank-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .rank-user { display: flex; align-items: center; gap: 12px; flex: 1; }
-.avatar-small { width: 44px; height: 44px; border-radius: 50%; } /* 크기 조정 */
+.avatar-small { width: 44px; height: 44px; border-radius: 50%; }
 .rank-info { display: flex; flex-direction: column; font-size: 14px; }
 .rank-name { font-weight: bold; }
-.follow-btn { background: #333; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-
+.rank-rate { font-size: 13px; font-weight: bold; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(4px); }
 .modal-content { background: #1f2937; padding: 32px; border-radius: 20px; color: #f5f5f7; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; }
-
-.write-modal { width: 90%; max-width: 800px; height: auto; max-height: 90vh; }
-.form-group { margin-bottom: 16px; }
+.write-modal { width: 90%; max-width: 800px; max-height: 90vh; }
 .input-full { width: 100%; background: #111827; border: 1px solid #374151; color: white; padding: 14px; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
-.title-input { font-size: 20px; font-weight: bold; }
 .textarea-full { width: 100%; height: 300px; background: #111827; border: 1px solid #374151; color: white; padding: 14px; border-radius: 12px; resize: none; box-sizing: border-box; font-size: 16px; line-height: 1.6; }
-.file-input { margin-top: 8px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-.cancel-btn { background: #374151; color: white; border: none; padding: 12px 24px; border-radius: 12px; cursor: pointer; font-size: 16px; }
 .submit-btn { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; }
-
+.cancel-btn { background: #374151; color: white; border: none; padding: 12px 24px; border-radius: 12px; cursor: pointer; font-size: 16px; }
 .detail-modal { width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; }
-.detail-title { font-size: 24px; margin: 20px 0; }
-.detail-body { font-size: 16px; line-height: 1.7; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 30px; }
-.detail-image { max-width: 100%; border-radius: 12px; margin-top: 20px; }
-.divider { border: 0; border-top: 1px solid #374151; margin: 30px 0; }
-.comment-list { max-height: 300px; overflow-y: auto; margin-bottom: 20px; }
 .comment-item { background: #111827; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
-.cmt-author { font-weight: bold; color: #60a5fa; margin-right: 8px; }
-.comment-input-area { display: flex; gap: 10px; }
+.comment-input-area { display: flex; gap: 10px; margin-top: 20px; }
 .comment-input-area input { flex: 1; background: #111827; border: 1px solid #374151; color: white; padding: 12px; border-radius: 8px; }
 .comment-input-area button { background: #3b82f6; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; }
+.divider { border: 0; border-top: 1px solid #374151; margin: 20px 0; }
 </style>
