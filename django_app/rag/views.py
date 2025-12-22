@@ -602,72 +602,82 @@ class StockHoldingViewSet(viewsets.ModelViewSet):
         user = get_current_user(self.request)
         serializer.save(user=user)
 
-
+from django.db.models import F
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
 
     def get_queryset(self):
         user_id = self.request.session.get("user_id")
-        if not user_id: return Transaction.objects.none()
+        if not user_id: 
+            return Transaction.objects.none()
         return Transaction.objects.filter(user_id=user_id).order_by('-created_at')
 
     def perform_create(self, serializer):
         user = get_current_user(self.request)
-        
-        # 1. 요청 데이터 추출
         trade_type = serializer.validated_data.get('type')
-        price = serializer.validated_data.get('price')
-        quantity = serializer.validated_data.get('quantity')
+        # 데이터 타입을 Decimal로 강제 변환하여 계산 오류 방지
+        price = Decimal(str(serializer.validated_data.get('price')))
+        quantity = Decimal(str(serializer.validated_data.get('quantity')))
         company = serializer.validated_data.get('company')
         amount = price * quantity
 
-        # 2. 원자적(Atomic) 처리: 마일리지와 잔고 업데이트를 한 번에 처리
+        # 모든 DB 작업은 하나의 원자적 트랜잭션으로 처리
         with transaction.atomic():
             if trade_type == 'BUY':
-                # [매수 검증] 마일리지 확인
+                # [매수 로직]
                 if user.mileage < amount:
                     raise PermissionDenied("마일리지가 부족합니다.")
                 
-                # 마일리지 차감
                 user.mileage -= amount
                 user.save()
 
-                # 보유 잔고(StockHolding) 업데이트
                 holding, created = StockHolding.objects.get_or_create(
-                    user=user, 
-                    company=company,
-                    defaults={'average_price': 0, 'quantity': 0}
+                    user=user, company=company,
+                    defaults={'average_price': Decimal('0'), 'quantity': 0}
                 )
                 
                 if created:
-                    holding.quantity = quantity
+                    holding.quantity = int(quantity)
                     holding.average_price = price
                 else:
-                    # 평단가 계산: (기존총액 + 신규총액) / 전체수량
-                    total_cost = (holding.average_price * holding.quantity) + amount
-                    holding.quantity += quantity
-                    holding.average_price = total_cost / holding.quantity
+                    # 새로운 평단가 계산
+                    total_cost = (holding.average_price * Decimal(holding.quantity)) + amount
+                    holding.quantity += int(quantity)
+                    holding.average_price = total_cost / Decimal(holding.quantity)
                 holding.save()
 
             elif trade_type == 'SELL':
-                # [매도 검증] 실제 보유 중인지, 수량은 충분한지 확인
+                # [매도 로직]
                 holding = StockHolding.objects.filter(user=user, company=company).first()
-                if not holding or holding.quantity < quantity:
-                    raise PermissionDenied("보유 수량이 부족하여 매도할 수 없습니다.")
+                if not holding or holding.quantity < int(quantity):
+                    raise PermissionDenied("보유 수량이 부족합니다.")
+
+                # 🎯 실현손익 계산: (현재 매도가 - 내가 샀던 평단가) * 수량
+                # holding.average_price는 Decimal이므로 정상 계산됨
+                pnl = (price - holding.average_price) * quantity
+
+                # 유저 테이블에 누적 수익금 저장
+                current_profit = user.realized_profit or Decimal('0')
+                user.realized_profit = current_realized_profit = current_profit + pnl
                 
-                # 마일리지 증가
-                user.mileage += amount
+                # 실현 수익률 계산 (초기 자산 10,000,000원 기준)
+                initial_capital = Decimal('10000000')
+                # ZeroDivisionError 방지 및 float 변환
+                if initial_capital > 0:
+                    user.total_return_rate = float((user.realized_profit / initial_capital) * 100)
+                
+                user.mileage += amount  # 판매 대금 추가
                 user.save()
 
-                # 보유 잔고 업데이트
-                holding.quantity -= quantity
+                # 잔고 업데이트
+                holding.quantity -= int(quantity)
                 if holding.quantity == 0:
-                    holding.delete() # 전량 매도 시 레코드 삭제
+                    holding.delete()
                 else:
                     holding.save()
 
-            # 3. 거래 내역 저장
+            # 최종적으로 거래 내역(Transaction) 저장
             serializer.save(user=user, amount=amount)
 
 # ========================================================

@@ -9,7 +9,6 @@ import logoImg from '@/assets/logo.png'
 
 const router = useRouter()
 
-// 페이지 이동 함수
 const goDashboard = () => {
   router.push({ name: 'dashboard' })
 }
@@ -18,12 +17,9 @@ const goSignup = () => {
   router.push({ name: 'signup' }) 
 }
 
-// 스크롤 등장 애니메이션 로직 (Luxurious Slow - 2초)
+// 스크롤 등장 애니메이션 (2초)
 onMounted(() => {
-  const observerOptions = {
-    threshold: 0.1
-  }
-
+  const observerOptions = { threshold: 0.1 }
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -32,8 +28,7 @@ onMounted(() => {
     })
   }, observerOptions)
 
-  const sectionElements = document.querySelectorAll('.section')
-  sectionElements.forEach(el => observer.observe(el))
+  document.querySelectorAll('.section').forEach(el => observer.observe(el))
 })
 </script>
 
@@ -94,12 +89,10 @@ onMounted(() => {
         <div class="service-icon">
           <img :src="logoImg" alt="BackLoop 로고" class="cta-logo-img" />
         </div>
-        
         <h2 class="cta-headline">
           투자의 흐름에 집중. 쓰기 좋게 맞춤.<br/>
           BackLoop
         </h2>
-
         <div class="cta-button-group">
           <button class="cta-sub-btn dark" @click="goDashboard">
             대시보드 바로가기 <span class="icon">↗</span>
@@ -115,9 +108,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* --- 1. 배경: 메쉬 그라디언트 애니메이션 (시각성 대폭 강화) --- */
+/* --- 0. 폰트 설정 --- */
+
+/* 타이틀 전용 폰트 (Title) */
+@font-face {
+  font-family: 'HappinessSansTitle';
+  src: url('@/assets/fonts/Happiness-Sans-Title.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 본문 및 버튼용 폰트 (Bold) */
+@font-face {
+  font-family: 'HappinessSansBold';
+  src: url('@/assets/fonts/Happiness-Sans-Bold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* --- 1. 배경: 초고속 메쉬 그라디언트 (6초) --- */
 .landing-container {
-  /* 색상 대비를 높여 움직임이 더 잘 보이도록 구성 */
   background: linear-gradient(
     125deg, 
     #dcf1ff 0%, 
@@ -126,29 +136,22 @@ onMounted(() => {
     #f4f7ff 75%, 
     #d1d5db 100%
   );
-  /* background-size를 300%로 최적화하여 색상의 경계를 더 뚜렷하게 만듦 */
-  background-size: 300% 300%;
-  /* 애니메이션 속도를 15s로 살짝 당겨 역동성 부여 */
-  animation: meshGradient 7s ease-in-out infinite;
+  background-size: 400% 400%;
+  animation: fastMeshGradient 6s ease infinite;
   color: #1a1a1b;
   min-height: 100vh;
   overflow-x: hidden;
-  font-family: 'Pretendard', -apple-system, sans-serif;
+  /* 기본 폰트를 Bold로 설정 */
+  font-family: 'HappinessSansBold', -apple-system, sans-serif;
 }
 
-@keyframes meshGradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+@keyframes fastMeshGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-/* --- 2. 와이드 레이아웃 및 등장 애니메이션 (기존 유지) --- */
+/* --- 2. 섹션 애니메이션 (2초) --- */
 .section {
   width: 100%;
   max-width: 1400px;
@@ -170,122 +173,86 @@ onMounted(() => {
   transform: translateY(0);
 }
 
-.main-title {
-  font-size: 5rem;
-  font-weight: 900;
-  line-height: 1.15;
-  margin-bottom: 30px;
-  word-break: keep-all;
+/* --- 타이틀 스타일 (Title 폰트 적용) --- */
+.main-title { 
+  font-family: 'HappinessSansTitle', sans-serif;
+  font-size: 5rem; 
+  font-weight: 900; 
+  line-height: 1.15; 
+  margin-bottom: 30px; 
+  word-break: keep-all; 
 }
 
-.highlight { color: #2563eb; position: relative; z-index: 1; }
-.highlight::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 10px;
-  width: 100%;
-  height: 20px;
-  background: rgba(37, 99, 235, 0.1);
-  z-index: -1;
+.highlight { color: #2563eb; }
+
+/* --- 본문 스타일 (Bold 폰트 적용) --- */
+.sub-text { 
+  font-size: 1.6rem; 
+  color: #4b5563; 
+  margin-bottom: 50px; 
+  word-break: keep-all; 
 }
 
-.sub-text {
-  font-size: 1.6rem;
-  color: #4b5563;
-  margin-bottom: 50px;
-  word-break: keep-all;
-}
-
-/* --- 3. 피처 카드 디자인 (배경을 더 잘 보이게 투명도 조정) --- */
-.feature-card {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 80px;
-  width: 100%;
-  align-items: center;
-}
-
+/* 피처 카드 */
+.feature-card { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; width: 100%; align-items: center; }
 .feature-card.reverse .card-image-wrapper { order: 2; }
-
 .glass {
-  /* 배경의 메쉬 움직임이 더 잘 보이도록 배경 투명도를 0.45 -> 0.3으로 조정 */
-  background: rgba(255, 255, 255, 0.3); 
-  backdrop-filter: blur(25px); /* 블러 효과는 유지하여 고급스러움 강조 */
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.25); 
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   padding: 80px;
   border-radius: 60px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
 }
 
-.badge {
-  display: inline-block;
-  padding: 6px 16px;
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
-  border-radius: 20px;
-  font-weight: 700;
-  margin-bottom: 20px;
-}
-
-.card-text h2 { font-size: 3.5rem; font-weight: 800; margin-bottom: 30px; word-break: keep-all; white-space: pre-line; }
+.badge { display: inline-block; padding: 6px 16px; background: rgba(37, 99, 235, 0.1); color: #2563eb; border-radius: 20px; font-weight: 700; margin-bottom: 20px; }
+.card-text h2 { font-size: 3.5rem; font-weight: 800; margin-bottom: 30px; word-break: keep-all; }
 .card-text p { font-size: 1.4rem; line-height: 1.8; color: #374151; word-break: keep-all; }
 .card-image-wrapper { width: 100%; height: 500px; border-radius: 40px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,0.1); }
 .card-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s ease; }
 .feature-card:hover .card-image { transform: scale(1.08); }
 
-/* --- 4. 버튼 디자인 --- */
-.start-btn {
-  padding: 20px 50px;
-  font-size: 1.3rem;
-  font-weight: 800;
-  border-radius: 100px;
-  cursor: pointer;
-  border: none;
-  transition: all 0.4s ease;
+/* --- 버튼 디자인 (Bold 폰트 적용) --- */
+.start-btn { 
+  font-family: 'HappinessSansBold', sans-serif;
+  padding: 20px 50px; 
+  font-size: 1.3rem; 
+  font-weight: 800; 
+  border-radius: 100px; 
+  cursor: pointer; 
+  border: none; 
+  transition: all 0.4s ease; 
 }
-
 .start-btn.glow { background: #111; color: #fff; }
-.start-btn.glow:hover {
-  transform: translateY(-8px) scale(1.05);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 0 20px rgba(37, 99, 235, 0.3);
-}
+.start-btn.glow:hover { transform: translateY(-8px) scale(1.05); box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 0 20px rgba(37, 99, 235, 0.3); }
 
-/* --- 5. Footer CTA --- */
-.footer-cta-section {
-  min-height: auto;
-  padding-bottom: 120px;
-}
-
-.cta-main-card {
-  width: 100%;
-  max-width: 1200px;
-  background-color: #f9f9f9;
-  border-radius: 40px;
-  padding: 80px 40px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.service-icon { margin-bottom: 30px; }
+/* 하단 CTA */
+.footer-cta-section { min-height: auto; padding-bottom: 120px; }
+.cta-main-card { width: 100%; max-width: 1200px; background-color: #f9f9f9; border-radius: 40px; padding: 80px 40px; text-align: center; display: flex; flex-direction: column; align-items: center; }
 .cta-logo-img { width: 120px; height: auto; border-radius: 24px; }
 .cta-headline { font-size: 2.8rem; font-weight: 700; line-height: 1.4; margin-bottom: 40px; word-break: keep-all; color: #111; }
 .cta-button-group { display: flex; gap: 20px; }
-.cta-sub-btn { padding: 20px 40px; font-size: 1.2rem; font-weight: 700; border-radius: 16px; cursor: pointer; border: none; display: flex; align-items: center; gap: 12px; transition: all 0.3s ease; }
+
+.cta-sub-btn { 
+  font-family: 'HappinessSansBold', sans-serif;
+  padding: 20px 40px; 
+  font-size: 1.2rem; 
+  font-weight: 700; 
+  border-radius: 16px; 
+  cursor: pointer; 
+  border: none; 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  transition: all 0.3s ease; 
+}
 .cta-sub-btn.dark { background-color: #111; color: white; }
 .cta-sub-btn:hover { background-color: #333; transform: translateY(-4px); }
-.icon { font-size: 1.2rem; opacity: 0.8; }
 
-/* 반응형 처리 */
+/* 반응형 */
 @media (max-width: 1200px) {
   .main-title { font-size: 3.5rem; }
   .feature-card, .feature-card.reverse { grid-template-columns: 1fr; padding: 40px; text-align: center; }
   .feature-card.reverse .card-image-wrapper { order: 0; }
-  .card-image-wrapper { height: 350px; }
-  .cta-headline { font-size: 2.2rem; }
-  .cta-button-group { flex-direction: column; width: 100%; }
-  .cta-sub-btn { width: 100%; justify-content: center; }
 }
 </style>

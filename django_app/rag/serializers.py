@@ -17,7 +17,7 @@ class UserReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'nickname', 'profile_image_url', 'followers_count', 'following_count', 'is_following', 'mileage', 'total_return_rate']
+        fields = ['id', 'nickname', 'profile_image_url', 'followers_count', 'following_count', 'is_following', 'mileage','realized_profit', 'total_return_rate']
 
     def get_is_following(self, obj):
         request = self.context.get('request')

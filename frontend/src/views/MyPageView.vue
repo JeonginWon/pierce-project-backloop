@@ -23,11 +23,11 @@
         <v-col cols="12" md="4">
           <v-card class="custom-card pa-6 h-100" rounded="xl" variant="outlined">
             <div class="d-flex flex-column align-center">
-              <v-avatar size="100" class="mb-4 border-subtle shadow-lg">
+              <v-avatar size="100" class="mb-4 border-subtle">
                 <img 
-                  :src="user?.profile_image_url || user?.profile_image || `https://ui-avatars.com/api/?name=${user?.nickname || 'User'}&background=2563eb&color=fff&size=200`"
+                  :src="user?.profile_image_url || user?.profile_image || '/default-profile.png'" 
+                  class="avatar"
                   style="width: 100%; height: 100%; object-fit: cover;"
-                  alt="프로필"
                 />
               </v-avatar>
               
@@ -36,16 +36,9 @@
               </h2>
               <span class="text-grey mb-2">{{ user?.email }}</span>
               
-              <!-- 팔로우 정보 (클릭 가능) -->
-              <div class="d-flex gap-4 mb-4">
-                <button @click="loadFollowers" class="follow-stat-btn">
-                  <span class="text-grey text-caption">팔로워</span>
-                  <span class="text-white font-weight-bold">{{ user?.followers_count || 0 }}</span>
-                </button>
-                <button @click="loadFollowing" class="follow-stat-btn">
-                  <span class="text-grey text-caption">팔로잉</span>
-                  <span class="text-white font-weight-bold">{{ user?.following_count || 0 }}</span>
-                </button>
+              <div class="d-flex gap-4 mb-6 text-grey text-caption">
+                <span>팔로워 {{ user?.followers_count || 0 }}</span>
+                <span>팔로잉 {{ user?.following_count || 0 }}</span>
               </div>
               
               <v-btn 
@@ -73,7 +66,6 @@
                 :color="getColor(portfolioStats.returnRate)" 
                 variant="tonal" 
                 label
-                class="font-weight-bold"
               >
                 수익률 {{ portfolioStats.returnRate }}%
               </v-chip>
@@ -238,7 +230,7 @@
             </v-list>
           </v-window-item>
 
-          <!-- ========== 내가 쓴 글 ========== -->
+          <!-- ========== 👇 내가 쓴 글 (새로 추가!) ========== -->
           <v-window-item value="posts">
             <v-list bg-color="transparent">
               <v-list-item 
@@ -271,61 +263,40 @@
 
           <!-- ========== 관심 종목 ========== -->
           <v-window-item value="watchlist">
-            <v-row v-if="watchlist.length > 0" class="mt-2">
+            <v-row v-if="watchlist.length > 0">
               <v-col 
                 v-for="item in watchlist" 
                 :key="item.ticker"
-                cols="12" sm="6" md="4"
+                cols="12" 
+                sm="6" 
+                md="4"
               >
                 <v-card 
-                  class="watchlist-card" 
-                  rounded="xl" 
-                  variant="flat"
+                  class="custom-card pa-4" 
+                  rounded="lg" 
+                  variant="outlined"
                   @click="goToStock(item.ticker)"
+                  style="cursor: pointer;"
                 >
-                  <div class="d-flex align-center pa-5">
-                    <v-avatar size="52" class="mr-4 shadow-sm">
-                      <v-img
-                        :src="`https://static.toss.im/png-icons/securities/icn-sec-fill-${item.ticker}.png`"
-                        alt="logo"
-                        cover
-                      >
-                        <template v-slot:placeholder>
-                          <v-icon color="grey-darken-2">mdi-finance</v-icon>
-                        </template>
-                      </v-img>
-                    </v-avatar>
-
-                    <div class="flex-grow-1">
-                      <div class="d-flex justify-space-between align-start">
-                        <div>
-                          <!-- ✅ 회사명 -->
-                          <div class="text-h6 font-weight-bold text-white mb-0 line-height-tight">
-                            {{ item.company_name || item.ticker }}
-                          </div>
-                          <!-- ✅ ticker -->
-                          <div class="text-caption text-grey-lighten-1">{{ item.ticker }}</div>
-                        </div>
-                        
-                        <v-btn 
-                          icon="mdi-close" 
-                          variant="text" 
-                          size="x-small"
-                          color="grey-lighten-1"
-                          class="remove-btn"
-                          @click.stop="toggleWatchlistItem(item.ticker)"
-                        ></v-btn>
-                      </div>
-                    </div>
+                  <div class="d-flex justify-space-between align-center mb-2">
+                    <span class="text-h6 text-white font-weight-bold">
+                      {{ item.ticker }}
+                    </span>
+                    <v-btn 
+                      icon="mdi-close" 
+                      variant="text" 
+                      size="small"
+                      @click.stop="toggleWatchlistItem(item.ticker)"
+                    ></v-btn>
                   </div>
+                  <span class="text-caption text-grey">종목 상세보기</span>
                 </v-card>
               </v-col>
             </v-row>
             
             <div v-else class="text-center py-16 text-grey">
-              <v-icon icon="mdi-star-outline" size="64" color="grey-darken-3" class="mb-4"></v-icon>
-              <div class="text-h6">관심 종목이 비어있습니다</div>
-              <div class="text-body-2">별표를 눌러 나만의 리스트를 만들어보세요.</div>
+              <v-icon icon="mdi-star-outline" size="48" class="mb-2"></v-icon>
+              <div>관심 종목이 없습니다.</div>
             </div>
           </v-window-item>
 
@@ -457,115 +428,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- =================== 모달: 팔로워 목록 =================== -->
-    <v-dialog v-model="showFollowersModal" max-width="500">
-      <v-card class="custom-card" rounded="xl">
-        <v-card-title class="text-white pa-4 d-flex justify-space-between align-center">
-          <span>팔로워 {{ followers.length }}</span>
-          <v-btn 
-            icon="mdi-close" 
-            variant="text" 
-            size="small"
-            @click="showFollowersModal = false"
-          ></v-btn>
-        </v-card-title>
-        <v-divider class="border-opacity-25"></v-divider>
-        <v-card-text class="pa-4" style="max-height: 400px; overflow-y: auto;">
-          <div v-if="followers.length > 0">
-            <div 
-              v-for="follower in followers" 
-              :key="follower.id"
-              class="user-item"
-            >
-              <div class="d-flex align-center gap-3">
-                <v-avatar size="40">
-                  <img 
-                    :src="follower.profile_image_url || follower.profile_image || `https://ui-avatars.com/api/?name=${follower.nickname}&background=2563eb&color=fff&size=80`"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </v-avatar>
-                <div class="flex-grow-1">
-                  <div class="text-white font-weight-medium">{{ follower.nickname }}</div>
-                  <div class="text-grey text-caption">
-                    수익률: 
-                    <span :class="follower.total_return_rate > 0 ? 'text-red-accent-2' : 'text-blue-accent-2'">
-                      {{ follower.total_return_rate > 0 ? '+' : '' }}{{ follower.total_return_rate }}%
-                    </span>
-                  </div>
-                </div>
-                <v-btn
-                  v-if="follower.id !== user.id"
-                  :color="follower.is_following ? 'grey' : 'primary'"
-                  :variant="follower.is_following ? 'outlined' : 'flat'"
-                  size="small"
-                  @click="toggleFollow(follower.id)"
-                >
-                  {{ follower.is_following ? '팔로잉' : '팔로우' }}
-                </v-btn>
-              </div>
-            </div>
-          </div>
-          <div v-else class="text-center py-8 text-grey">
-            아직 팔로워가 없습니다.
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-
-    <!-- =================== 모달: 팔로잉 목록 =================== -->
-    <v-dialog v-model="showFollowingModal" max-width="500">
-      <v-card class="custom-card" rounded="xl">
-        <v-card-title class="text-white pa-4 d-flex justify-space-between align-center">
-          <span>팔로잉 {{ following.length }}</span>
-          <v-btn 
-            icon="mdi-close" 
-            variant="text" 
-            size="small"
-            @click="showFollowingModal = false"
-          ></v-btn>
-        </v-card-title>
-        <v-divider class="border-opacity-25"></v-divider>
-        <v-card-text class="pa-4" style="max-height: 400px; overflow-y: auto;">
-          <div v-if="following.length > 0">
-            <div 
-              v-for="followingUser in following" 
-              :key="followingUser.id"
-              class="user-item"
-            >
-              <div class="d-flex align-center gap-3">
-                <v-avatar size="40">
-                  <img 
-                    :src="followingUser.profile_image_url || followingUser.profile_image || `https://ui-avatars.com/api/?name=${followingUser.nickname}&background=2563eb&color=fff&size=80`"
-                    style="width: 100%; height: 100%; object-fit: cover;"
-                  />
-                </v-avatar>
-                <div class="flex-grow-1">
-                  <div class="text-white font-weight-medium">{{ followingUser.nickname }}</div>
-                  <div class="text-grey text-caption">
-                    수익률: 
-                    <span :class="followingUser.total_return_rate > 0 ? 'text-red-accent-2' : 'text-blue-accent-2'">
-                      {{ followingUser.total_return_rate > 0 ? '+' : '' }}{{ followingUser.total_return_rate }}%
-                    </span>
-                  </div>
-                </div>
-                <v-btn
-                  color="grey"
-                  variant="outlined"
-                  size="small"
-                  @click="toggleFollow(followingUser.id)"
-                >
-                  팔로잉
-                </v-btn>
-              </div>
-            </div>
-          </div>
-          <div v-else class="text-center py-8 text-grey">
-            아직 팔로우한 사용자가 없습니다.
-          </div>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-
   </v-container>
 </template>
 
@@ -584,9 +446,7 @@ const holdings = ref([])
 const transactions = ref([])
 const watchlist = ref([])
 const strategyNotes = ref([])
-const myPosts = ref([])
-const followers = ref([])
-const following = ref([])
+const myPosts = ref([])  // 👈 추가
 
 const loading = ref(false)
 const error = ref(null)
@@ -594,8 +454,6 @@ const error = ref(null)
 const showEditModal = ref(false)
 const showNoteModal = ref(false)
 const showAllTransactions = ref(false)
-const showFollowersModal = ref(false)
-const showFollowingModal = ref(false)
 const displayLimit = 10
 
 const activeTab = ref('holdings')
@@ -638,24 +496,21 @@ const loadAllData = async () => {
       mypageAPI.getPortfolioSummary(),
       mypageAPI.getHoldings(),
       mypageAPI.getTransactions(),
-      mypageAPI.getMyPosts(),
+      mypageAPI.getMyPosts(),  // 👈 추가
     ])
 
     user.value = userRes.data
     portfolio.value = portfolioRes.data
     holdings.value = holdingsRes.data
     transactions.value = txRes.data
-    myPosts.value = postsRes.data
+    myPosts.value = postsRes.data  // 👈 추가
     
     console.log('✅ 필수 데이터 로딩 완료')
-    console.log('🔵 유저 데이터:', user.value)
 
     // 선택적 API (에러가 나도 페이지는 로드됨)
     try {
       const watchlistRes = await mypageAPI.getWatchlist()
-      const actualData = watchlistRes.data.results || watchlistRes.data
-      watchlist.value = Array.isArray(actualData) ? actualData : []
-      console.log('✅ 관심종목:', watchlist.value)
+      watchlist.value = watchlistRes.data
     } catch (e) {
       console.warn('⚠️ 관심종목 로드 실패', e.response?.status)
       watchlist.value = []
@@ -687,83 +542,6 @@ const loadAllData = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const loadFollowers = async () => {
-  try {
-    const res = await mypageAPI.getFollowers()
-    followers.value = res.data
-    showFollowersModal.value = true
-  } catch (e) {
-    console.error('팔로워 로드 실패:', e)
-  }
-}
-
-const loadFollowing = async () => {
-  try {
-    const res = await mypageAPI.getFollowing()
-    following.value = res.data
-    showFollowingModal.value = true
-  } catch (e) {
-    console.error('팔로잉 로드 실패:', e)
-  }
-}
-
-const toggleFollow = async (targetUserId) => {
-  try {
-    const res = await fetch(`/api/users/${targetUserId}/follow/`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-      }
-    })
-    
-    if (res.ok) {
-      const data = await res.json()
-      
-      // 팔로잉 목록에서 상태 업데이트
-      if (showFollowingModal.value) {
-        const index = following.value.findIndex(u => u.id === targetUserId)
-        if (index > -1 && !data.is_following) {
-          following.value.splice(index, 1)
-        }
-      }
-      
-      // 팔로워 목록에서 상태 업데이트
-      if (showFollowersModal.value) {
-        const followerUser = followers.value.find(u => u.id === targetUserId)
-        if (followerUser) {
-          followerUser.is_following = data.is_following
-        }
-      }
-      
-      // 내 팔로잉 수 업데이트
-      if (data.is_following) {
-        user.value.following_count++
-      } else {
-        user.value.following_count--
-      }
-    }
-  } catch (e) {
-    console.error('팔로우 처리 실패:', e)
-    alert('팔로우 처리에 실패했습니다.')
-  }
-}
-
-const getCookie = (name) => {
-  let cookieValue = null
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';')
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim()
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1))
-        break
-      }
-    }
-  }
-  return cookieValue
 }
 
 const openEditDialog = () => {
@@ -853,10 +631,13 @@ const goToStock = (ticker) => {
   router.push(`/stock/${ticker}`)
 }
 
+// 👇 추가: 게시글 상세로 이동
 const goToPost = (postId) => {
-  router.push(`/community/${postId}`)
+  router.push({ 
+    name: 'community-detail',  // 👈 라우터에 정의된 name 사용
+    params: { id: postId } 
+  })
 }
-
 // =================== Formatters ===================
 const formatPrice = (value) => {
   return value?.toLocaleString() || '0'
@@ -908,66 +689,5 @@ onMounted(() => {
 
 .gap-4 {
   gap: 1rem;
-}
-
-.gap-3 {
-  gap: 0.75rem;
-}
-
-.follow-stat-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: background 0.2s;
-}
-
-.follow-stat-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.user-item {
-  padding: 12px;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  transition: background 0.2s;
-}
-
-.user-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-/* 👇 팀원이 추가한 watchlist 스타일 유지 */
-.watchlist-card {
-  background: linear-gradient(145deg, #1e1e1e, #141414) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  cursor: pointer;
-}
-
-.watchlist-card:hover {
-  transform: translateY(-5px);
-  background: linear-gradient(145deg, #252525, #1a1a1a) !important;
-  border-color: rgba(49, 130, 246, 0.5) !important;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4) !important;
-}
-
-.line-height-tight {
-  line-height: 1.2;
-}
-
-.remove-btn {
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-
-.remove-btn:hover {
-  opacity: 1 !important;
-  background-color: rgba(255, 255, 255, 0.1);
 }
 </style>

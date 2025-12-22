@@ -10,7 +10,8 @@ class User(models.Model):
     password = models.CharField(max_length=255)
     profile_image_url = models.CharField(max_length=255, null=True, blank=True)
     mileage = models.IntegerField(default=30000000) # 가입 시 3000만 백마일 기본 지급
-    total_return_rate = models.FloatField(default=0.0) # 수익률 (랭킹용)
+    realized_profit = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    total_return_rate = models.FloatField(default=0.0) # 커뮤니티에서 보여줄 수익률
     def __str__(self):
         return self.nickname
 

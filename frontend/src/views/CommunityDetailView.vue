@@ -117,6 +117,12 @@ const toggleLike = async () => {
   }
 }
 
+const goToPostDetail = (postId) => {
+  // 게시글 상세 뷰의 경로가 /community/:id 형태라고 가정합니다.
+  // 프로젝트의 실제 라우트 설정에 따라 이름을 사용하거나 경로를 수정하세요.
+  router.push(`/community/${postId}`)
+}
+
 const goBack = () => {
   router.back()
 }
