@@ -10,7 +10,7 @@ router.register(r'posts', views.PostViewSet)
 router.register(r'follows', views.FollowViewSet)
 
 # Stocks
-router.register(r'companies', views.CompanyViewSet)
+router.register(r'companies', views.CompanyViewSet, basename='company')
 router.register(r'stock-prices', views.StockPriceViewSet)
 router.register(r'holdings', views.StockHoldingViewSet)
 router.register(r'transactions', views.TransactionViewSet)

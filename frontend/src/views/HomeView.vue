@@ -9,7 +9,7 @@ const authStore = useAuthStore()
 
 const popularStocks = ref([])
 const stocks = ref([])
-const watchlist = ref([]) // 관심종목 ticker 문자열 배열: ['005930', '000660', ...]
+const watchlist = ref([])
 const searchQuery = ref('')
 const currentPage = ref(1)
 const totalPages = ref(1)
@@ -36,7 +36,6 @@ const sparklineOptions = {
 
 const isWatched = (code) => watchlist.value.includes(code)
 
-// ✅ 관심종목 토글 (세션 인증 대응)
 const toggleWatchlist = async (event, stock) => {
   event.stopPropagation()
   if (!authStore.isAuthenticated) return alert('로그인이 필요합니다.')
@@ -45,7 +44,7 @@ const toggleWatchlist = async (event, stock) => {
     const res = await fetch(`${API_BASE}/watchlist/toggle/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', // ⭐ 세션 쿠키 포함
+      credentials: 'include',
       body: JSON.stringify({ ticker: stock.code })
     })
     
@@ -63,14 +62,10 @@ const toggleWatchlist = async (event, stock) => {
 const fetchWatchlist = async () => {
   if (!authStore.isAuthenticated) return
   try {
-    // 1. URL 끝에 슬래시(/)가 누락되지 않았는지 확인하세요.
     const res = await fetch(`${API_BASE}/watchlist/`, { credentials: 'include' })
     
     if (res.ok) {
       const data = await res.json()
-      console.log("관심종목 데이터 구조 확인:", data) // 디버깅용
-
-      // 2. 페이지네이션 결과(data.results)인지 일반 배열(data)인지 체크
       const items = data.results || data 
 
       if (Array.isArray(items)) {
@@ -78,8 +73,6 @@ const fetchWatchlist = async () => {
       } else {
         console.warn("예상치 못한 데이터 형식입니다.", data)
       }
-    } else {
-      console.error(`에러 발생: ${res.status}`)
     }
   } catch (e) {
     console.error("관심종목 로드 실패", e)
@@ -105,6 +98,16 @@ const fetchPopularStocks = async () => {
   } catch (e) { console.error(e) }
 }
 
+const formatTradingValue = (value) => {
+  if (value >= 1) {
+    return `${value}억원`
+  } else if (value > 0) {
+    return '1억 이하'
+  } else {
+    return '1억 이하'
+  }
+}
+
 const fetchStocks = async () => {
   if (currentPage.value === 1) loading.value = true
   try {
@@ -115,18 +118,39 @@ const fetchStocks = async () => {
     const companyList = data.results || data
     totalPages.value = Math.ceil((data.count || 1) / PAGE_SIZE)
 
-    stocks.value = await Promise.all(companyList.map(async (company) => {
+    const fetchedStocks = await Promise.all(companyList.map(async (company) => {
       const sumRes = await fetch(`${API_BASE}/stock-prices/summary/?ticker=${company.code}`)
-      // ✅ 404 에러 발생 시(데이터 없을 시) 기본값 할당
       const summary = sumRes.ok ? await sumRes.json() : { last_price: 0, change_rate: 0, volume: 0 }
       
-      const tradingValue = summary.volume ? Math.floor(summary.volume / 100000000) : 0
+      // 거래대금 계산 (숫자 타입 보장)
+      const volume = Number(summary.volume) || 0
+      const price = Number(summary.last_price) || 0
+      const tradingValue = Math.floor((volume * price) / 100000000)
+      
       const buyRatio = summary.buy_ratio || Math.floor(Math.random() * 40) + 30 
       const chartSeries = [{ data: [30, 40, 35, 50, 49, 60] }]
 
       return { ...company, ...summary, tradingValue, buyRatio, chartSeries }
     }))
-  } finally { loading.value = false }
+
+    // 👇 정렬 로직 강화
+    stocks.value = fetchedStocks.sort((a, b) => {
+      const valA = Number(a.tradingValue) || 0
+      const valB = Number(b.tradingValue) || 0
+      
+      // 1. 거래대금 내림차순 정렬
+      if (valB !== valA) {
+        return valB - valA
+      }
+      // 2. 거래대금이 같으면 이름순 정렬 (순서 고정을 위해)
+      return a.name.localeCompare(b.name)
+    })
+    
+  } catch (e) {
+    console.error("데이터 로드 실패", e)
+  } finally {
+    loading.value = false
+  }
 }
 
 const startPolling = () => {
@@ -135,7 +159,6 @@ const startPolling = () => {
   }, 10000)
 }
 
-// ✅ 인증 상태가 준비되면 관심목록 로드 (새로고침 대응)
 watch(() => authStore.isAuthenticated, (newVal) => {
   if (newVal) fetchWatchlist()
 }, { immediate: true })
@@ -219,14 +242,18 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
             </div>
             <div class="col-name flex-items">
               <img :src="`https://static.toss.im/png-icons/securities/icn-sec-fill-${stock.code}.png`" class="stock-logo-sm" />
-              <div class="name-box"><span class="name">{{ stock.name }}</span><span class="code">{{ stock.code }}</span></div>
+              <!-- 👇 기업명만 표시 (ticker 제거) -->
+              <div class="name-box">
+                <span class="name">{{ stock.name }}</span>
+              </div>
             </div>
             <div class="col-chart">
               <VueApexCharts type="line" height="30" width="80" :options="sparklineOptions" :series="stock.chartSeries" />
             </div>
             <div class="col-price text-right font-bold">{{ Number(stock.last_price || 0).toLocaleString() }}원</div>
             <div class="col-rate text-right" :class="stock.change_rate >= 0 ? 'red' : 'blue'">{{ stock.change_rate > 0 ? '+' : '' }}{{ stock.change_rate }}%</div>
-            <div class="col-value text-right text-gray">{{ stock.tradingValue }}억원</div>
+            <!-- 👇 포맷 함수 적용 -->
+            <div class="col-value text-right text-gray">{{ formatTradingValue(stock.tradingValue) }}</div>
             <div class="col-ratio flex-column text-right">
               <div class="ratio-bar-mini"><div class="buy-part" :style="{ width: stock.buyRatio + '%' }"></div></div>
               <span class="ratio-text">{{ stock.buyRatio }} : {{ 100 - stock.buyRatio }}</span>
@@ -273,7 +300,7 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
 .text-gray { color: #919193; font-size: 13px; }
 
 /* UI 요소 */
-.star-btn { background: none; border: none; color: #ff9d00; font-size: 18px; cursor: pointer; }
+.star-btn { background: none; border: none; color: #ff9d00; font-size: 18px; cursor: pointer; }   
 .num { color: #919193; font-weight: bold; width: 20px; text-align: center; }
 .stock-logo-sm { width: 32px; height: 32px; border-radius: 50%; }
 .ratio-bar-mini { width: 60px; height: 4px; background: #3182f6; border-radius: 2px; overflow: hidden; margin-left: auto; }

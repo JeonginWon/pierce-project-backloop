@@ -6,16 +6,19 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth.hashers import check_password
 from django.conf import settings
-from django.db.models import Count, Sum, Q
+from django.db.models import F, OuterRef, Subquery, DecimalField, BigIntegerField, Value, FloatField, Count, Sum, Q
+from django.db.models.functions import Coalesce
 from decimal import Decimal, InvalidOperation
 from pgvector.django import CosineDistance
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.db.models.functions import Coalesce, Cast
 
 from datetime import timedelta
 import openai
 
 from .utils import get_embedding, update_similarity_score
+
 
 # 모델 및 시리얼라이저 Import
 from .models import (
@@ -31,6 +34,11 @@ from .serializers import (
     HistoricalNewsSerializer, LatestNewsSerializer,
     WatchlistItemSerializer, StrategyNoteSerializer
 )
+
+from django.db.models import F, OuterRef, Subquery, DecimalField, BigIntegerField, FloatField
+from rest_framework import viewsets, filters
+from .models import Company, StockPrice
+from .serializers import CompanySerializer
 
 # --- OpenAI 설정 ---
 def get_openai_client():
@@ -489,10 +497,33 @@ class FollowViewSet(viewsets.ModelViewSet):
 # ========================================================
 
 class CompanyViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Company.objects.all().order_by('name')
+    # 중요: 이전에 추가했던 queryset = Company.objects.none() 줄이 있다면 반드시 삭제하세요!
     serializer_class = CompanySerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['code', 'name']
+
+    def get_queryset(self):
+        # 1. 서브쿼리: 각 회사별 최신 가격 데이터 1건 추출
+        latest_prices = StockPrice.objects.filter(
+            company_id=OuterRef('pk') # company 대신 pk로 직접 매칭
+        ).order_by('-record_time')
+
+        # 2. 쿼리셋 정의
+        return Company.objects.annotate(
+            # 현재가 가져오기 (없으면 0.0)
+            curr_price=Coalesce(
+                Subquery(latest_prices.values('close')[:1], output_field=DecimalField()),
+                Value(0, output_field=DecimalField())
+            ),
+            # 거래량 가져오기 (없으면 0)
+            curr_volume=Coalesce(
+                Subquery(latest_prices.values('volume')[:1], output_field=BigIntegerField()),
+                Value(0, output_field=BigIntegerField())
+            )
+        ).annotate(
+            # 거래대금 계산: 두 필드를 모두 Float로 형변환 후 곱셈 (Postgres 호환성 최적화)
+            trading_value=Cast(F('curr_price'), FloatField()) * Cast(F('curr_volume'), FloatField())
+        ).order_by('-trading_value', 'name')
 
 class StockPriceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = StockPrice.objects.all().order_by('-record_time')
@@ -636,19 +667,20 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny] 
 
     def create(self, request, *args, **kwargs):
-        # 1. 요청 데이터에서 '제목' 꺼내기
-        title = request.data.get('title')
+        # 👇 URL 기반 중복 체크 (제목보다 확실함)
+        url = request.data.get('url')
         
-        # 2. DB에 같은 제목의 뉴스가 있는지 확인
-        # (필요하다면 company_name이나 date도 같이 비교 가능)
-        if title and LatestNews.objects.filter(title=title).exists():
-            print(f"✋ 중복 뉴스 스킵: {title}")
-            # 저장을 안 하고 바로 200 OK 리턴 (Airflow가 실패로 인식하지 않게)
-            return Response({"message": "Skipped (Duplicate)", "title": title}, status=200)
-
-        # 3. 중복이 아니면 원래대로 저장 진행 (perform_create -> 임베딩 생성 등)
+        # URL이 있고 이미 존재하면 스킵
+        if url and LatestNews.objects.filter(url=url).exists():
+            print(f"✋ 중복 뉴스 스킵 (URL): {url}")
+            # 201로 반환 (Airflow가 성공으로 인식)
+            return Response(
+                {"message": "Skipped (Duplicate)", "url": url}, 
+                status=status.HTTP_201_CREATED  # 👈 201로 변경!
+            )
+        
+        # 중복이 아니면 원래대로 저장 진행
         return super().create(request, *args, **kwargs)
-    # 👇 [수정] list 메서드에서 정렬 및 검색 로직을 통합 처리
 
     def list(self, request, *args, **kwargs):
         # 1. 기본 쿼리셋
@@ -672,12 +704,10 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
                     queryset = queryset.order_by('-news_collection_date')
             else:
                 # [CASE B] 검색어 없음 -> '역사가 반복되는' 뉴스 찾기 (Pattern Matching)
-                # (모델에 max_similarity_score 필드가 있어야 함)
                 queryset = queryset.order_by('-max_similarity_score')
 
         elif sort_by == 'popular':
             # [CASE C] 인기순 (조회수)
-            # (모델에 view_count 필드가 있어야 함)
             queryset = queryset.order_by('-view_count')
 
         else:
@@ -685,7 +715,6 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
             queryset = queryset.order_by('-news_collection_date')
 
         # 4. 키워드 필터링 (유사도 정렬이 아닐 때만 적용)
-        # 유사도 정렬은 이미 의미 기반으로 찾았으므로 제외, 인기/최신순일 때만 텍스트 포함 여부 확인
         if search_query and sort_by != 'similarity':
             queryset = queryset.filter(
                 Q(title__icontains=search_query) | 
@@ -701,7 +730,6 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-
     # 🔎 Retrieve(상세 조회)를 위해 get_queryset은 기본 상태 유지 (혹은 필요 시 삭제 가능)
     def get_queryset(self):
         return LatestNews.objects.all().order_by('-news_collection_date')
