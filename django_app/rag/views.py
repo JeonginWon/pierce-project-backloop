@@ -11,7 +11,8 @@ from decimal import Decimal, InvalidOperation
 from pgvector.django import CosineDistance
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
+import yfinance as yf
+from django.db import transaction
 from datetime import timedelta
 import openai
 
@@ -569,6 +570,7 @@ class StockHoldingViewSet(viewsets.ModelViewSet):
         user = get_current_user(self.request)
         serializer.save(user=user)
 
+
 class TransactionViewSet(viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
@@ -580,23 +582,111 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = get_current_user(self.request)
-        # 매수/매도 요청 데이터
+        
+        # 1. 요청 데이터 추출
         trade_type = serializer.validated_data.get('type')
         price = serializer.validated_data.get('price')
         quantity = serializer.validated_data.get('quantity')
+        company = serializer.validated_data.get('company')
         amount = price * quantity
 
-        if trade_type == 'BUY':
-            if user.mileage < amount:
-                raise PermissionDenied("마일리지가 부족합니다.")
-            user.mileage -= amount
-        elif trade_type == 'SELL':
-            # (보유 수량 체크 로직은 생략되었으나 실제론 필요함)
-            user.mileage += amount
-            
-        user.save() # 마일리지 업데이트 저장
-        serializer.save(user=user, amount=amount)
+        # 2. 원자적(Atomic) 처리: 마일리지와 잔고 업데이트를 한 번에 처리
+        with transaction.atomic():
+            if trade_type == 'BUY':
+                # [매수 검증] 마일리지 확인
+                if user.mileage < amount:
+                    raise PermissionDenied("마일리지가 부족합니다.")
+                
+                # 마일리지 차감
+                user.mileage -= amount
+                user.save()
 
+                # 보유 잔고(StockHolding) 업데이트
+                holding, created = StockHolding.objects.get_or_create(
+                    user=user, 
+                    company=company,
+                    defaults={'average_price': 0, 'quantity': 0}
+                )
+                
+                if created:
+                    holding.quantity = quantity
+                    holding.average_price = price
+                else:
+                    # 평단가 계산: (기존총액 + 신규총액) / 전체수량
+                    total_cost = (holding.average_price * holding.quantity) + amount
+                    holding.quantity += quantity
+                    holding.average_price = total_cost / holding.quantity
+                holding.save()
+
+            elif trade_type == 'SELL':
+                # [매도 검증] 실제 보유 중인지, 수량은 충분한지 확인
+                holding = StockHolding.objects.filter(user=user, company=company).first()
+                if not holding or holding.quantity < quantity:
+                    raise PermissionDenied("보유 수량이 부족하여 매도할 수 없습니다.")
+                
+                # 마일리지 증가
+                user.mileage += amount
+                user.save()
+
+                # 보유 잔고 업데이트
+                holding.quantity -= quantity
+                if holding.quantity == 0:
+                    holding.delete() # 전량 매도 시 레코드 삭제
+                else:
+                    holding.save()
+
+            # 3. 거래 내역 저장
+            serializer.save(user=user, amount=amount)
+
+# ========================================================
+# 2-1. Market Index ViewSet (KOSPI, KOSDAQ 전용)
+# ========================================================
+
+
+class MarketIndexViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    def list(self, request):
+        # KOSPI: ^KS11, KOSDAQ: ^KQ11 (yfinance 티커 기준)
+        indices = {
+            'KOSPI': '^KS11',
+            'KOSDAQ': '^KQ11'
+        }
+        result = []
+
+        for name, ticker_symbol in indices.items():
+            try:
+                # 1. 지수 데이터 가져오기 (최근 5일치 일봉 데이터)
+                ticker = yf.Ticker(ticker_symbol)
+                # '1d' 간격으로 최근 5일 데이터를 가져와서 차트와 변동률 계산
+                hist = ticker.history(period="5d", interval="1d")
+
+                if hist.empty:
+                    continue
+
+                # 2. 실시간 정보 및 변동률 계산
+                latest_close = hist['Close'].iloc[-1]
+                prev_close = hist['Close'].iloc[-2]
+                change_rate = ((latest_close - prev_close) / prev_close) * 100
+
+                # 3. 차트용 데이터 (최근 10~20개 포인트 - sparkline용)
+                # interval을 '15m' 등으로 설정하면 더 세밀한 차트가 가능하지만, 
+                # 여기서는 간단히 일별 종가 리스트를 보냅니다.
+                chart_data = hist['Close'].tolist()
+
+                result.append({
+                    "name": name,
+                    "value": round(float(latest_close), 2),
+                    "change_rate": round(float(change_rate), 2),
+                    "series": [{"data": [round(float(x), 2) for x in chart_data]}]
+                })
+            except Exception as e:
+                print(f"❌ {name} 지수 수집 에러: {e}")
+                result.append({
+                    "name": name, "value": 0, "change_rate": 0, "series": [{"data": []}]
+                })
+
+        return Response(result)
 
 # ========================================================
 # 3. News ViewSets
