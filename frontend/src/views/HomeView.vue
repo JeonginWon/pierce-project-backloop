@@ -108,6 +108,16 @@ const fetchPopularStocks = async () => {
   } catch (e) { console.error(e) }
 }
 
+const formatTradingValue = (value) => {
+  if (value >= 1) {
+    return `${value}억원`
+  } else if (value > 0) {
+    return '1억 이하'
+  } else {
+    return '1억 이하'
+  }
+}
+
 // 전체 주식 리스트 불러오기
 const fetchStocks = async () => {
   if (currentPage.value === 1) loading.value = true
@@ -119,17 +129,39 @@ const fetchStocks = async () => {
     const companyList = data.results || data
     totalPages.value = Math.ceil((data.count || 1) / PAGE_SIZE)
 
-    stocks.value = await Promise.all(companyList.map(async (company) => {
+    const fetchedStocks = await Promise.all(companyList.map(async (company) => {
       const sumRes = await fetch(`${API_BASE}/stock-prices/summary/?ticker=${company.code}`)
       const summary = sumRes.ok ? await sumRes.json() : { last_price: 0, change_rate: 0, volume: 0 }
       
-      const tradingValue = summary.volume ? Math.floor(summary.volume / 100000000) : 0
+      // 거래대금 계산 (숫자 타입 보장)
+      const volume = Number(summary.volume) || 0
+      const price = Number(summary.last_price) || 0
+      const tradingValue = Math.floor((volume * price) / 100000000)
+      
       const buyRatio = summary.buy_ratio || Math.floor(Math.random() * 40) + 30 
       const chartSeries = [{ data: [30, 40, 35, 50, 49, 60] }] // 임시 차트 데이터
 
       return { ...company, ...summary, tradingValue, buyRatio, chartSeries }
     }))
-  } finally { loading.value = false }
+
+    // 👇 정렬 로직 강화
+    stocks.value = fetchedStocks.sort((a, b) => {
+      const valA = Number(a.tradingValue) || 0
+      const valB = Number(b.tradingValue) || 0
+      
+      // 1. 거래대금 내림차순 정렬
+      if (valB !== valA) {
+        return valB - valA
+      }
+      // 2. 거래대금이 같으면 이름순 정렬 (순서 고정을 위해)
+      return a.name.localeCompare(b.name)
+    })
+    
+  } catch (e) {
+    console.error("데이터 로드 실패", e)
+  } finally {
+    loading.value = false
+  }
 }
 
 // 실시간 폴링 (10초 주기)
@@ -232,14 +264,18 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
             </div>
             <div class="col-name flex-items">
               <img :src="`https://static.toss.im/png-icons/securities/icn-sec-fill-${stock.code}.png`" class="stock-logo-sm" />
-              <div class="name-box"><span class="name">{{ stock.name }}</span><span class="code">{{ stock.code }}</span></div>
+              <!-- 👇 기업명만 표시 (ticker 제거) -->
+              <div class="name-box">
+                <span class="name">{{ stock.name }}</span>
+              </div>
             </div>
             <div class="col-chart">
               <VueApexCharts type="line" height="30" width="80" :options="sparklineOptions" :series="stock.chartSeries" />
             </div>
             <div class="col-price text-right font-bold">{{ Number(stock.last_price || 0).toLocaleString() }}원</div>
             <div class="col-rate text-right" :class="stock.change_rate >= 0 ? 'red' : 'blue'">{{ stock.change_rate > 0 ? '+' : '' }}{{ stock.change_rate }}%</div>
-            <div class="col-value text-right text-gray">{{ stock.tradingValue }}억원</div>
+            <!-- 👇 포맷 함수 적용 -->
+            <div class="col-value text-right text-gray">{{ formatTradingValue(stock.tradingValue) }}</div>
             <div class="col-ratio flex-column text-right">
               <div class="ratio-bar-mini"><div class="buy-part" :style="{ width: stock.buyRatio + '%' }"></div></div>
               <span class="ratio-text">{{ stock.buyRatio }} : {{ 100 - stock.buyRatio }}</span>
@@ -292,6 +328,14 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
 
 .flex-items { display: flex; align-items: center; gap: 10px; }
 .text-right { text-align: right; }
+.font-bold { font-weight: 600; }
+.text-gray { color: #919193; font-size: 13px; }
+
+/* UI 요소 */
+.star-btn { background: none; border: none; color: #ff9d00; font-size: 18px; cursor: pointer; }   
+.num { color: #919193; font-weight: bold; width: 20px; text-align: center; }
+.stock-logo-sm { width: 32px; height: 32px; border-radius: 50%; }
+.ratio-bar-mini { width: 60px; height: 4px; background: #3182f6; border-radius: 2px; overflow: hidden; margin-left: auto; }
 .col-ratio { display: flex; flex-direction: column; align-items: flex-end; }
 .ratio-bar-mini { width: 60px; height: 4px; background: #3182f6; border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
 .buy-part { background: #f04452; height: 100%; }

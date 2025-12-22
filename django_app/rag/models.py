@@ -140,7 +140,7 @@ class LatestNews(models.Model):
     news_collection_date = models.DateTimeField()
     title = models.CharField(max_length=255)
     body = models.TextField()
-    url = models.URLField(max_length=2048, null=True, blank=True)
+    url = models.URLField(max_length=2048, null=True, blank=True, unique=True)
     body_embedding_vector = VectorField(dimensions=1536, null=True, blank=True)
     views = models.IntegerField(default=0)
     image_url = models.URLField(max_length=2048, null=True, blank=True)
