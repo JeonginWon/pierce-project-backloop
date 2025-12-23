@@ -45,7 +45,7 @@ def import_news():
     print("📰 뉴스 데이터 적재 및 임베딩 생성 시작... (시간이 좀 걸립니다)")
     
     try:
-        df = pd.read_csv('news_data_20251203_1625.csv')
+        df = pd.read_csv('data/news_data.csv')
     except FileNotFoundError:
         print("❌ 뉴스 CSV 파일을 찾을 수 없습니다.")
         return
@@ -100,7 +100,7 @@ def import_news():
 def import_stock():
     print("\n📈 주식 데이터 적재 시작...")
     try:
-        df = pd.read_csv('stock_data_20251203_1625.csv')
+        df = pd.read_csv('./data/stock_data.csv')
     except FileNotFoundError:
         print("❌ 주식 CSV 파일을 찾을 수 없습니다.")
         return
