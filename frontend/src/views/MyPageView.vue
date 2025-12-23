@@ -16,7 +16,7 @@
       <v-row class="mb-6">
         
         <v-col cols="12" md="4">
-          <v-card class="custom-card pa-6 h-100" rounded="xl" variant="outlined">
+          <v-card class="transparent-card pa-6 h-100" rounded="xl" variant="outlined">
             <div class="d-flex flex-column align-center">
               <v-avatar size="100" class="mb-4 border-subtle">
                 <img 
@@ -57,7 +57,7 @@
         </v-col>
 
         <v-col cols="12" md="8">
-          <v-card class="custom-card pa-8 h-100 d-flex flex-column justify-center" rounded="xl" variant="outlined">
+          <v-card class="transparent-card pa-8 h-100 d-flex flex-column justify-center" rounded="xl" variant="outlined">
             <div class="d-flex align-center justify-space-between mb-2">
               <h3 class="text-subtitle-1 text-grey font-weight-medium">💼 총 평가 자산</h3>
               <v-chip 
@@ -100,7 +100,7 @@
         </v-col>
       </v-row>
 
-      <v-card class="custom-card mt-6" rounded="xl" variant="outlined" min-height="500">
+      <v-card class="transparent-card mt-6" rounded="xl" variant="outlined" min-height="500">
         <v-tabs 
           v-model="activeTab" 
           bg-color="transparent" 
@@ -260,7 +260,7 @@
                 cols="12" sm="6" md="4"
               >
                 <v-card 
-                  class="custom-card watchlist-card pa-4" 
+                  class="transparent-card watchlist-card pa-4" 
                   rounded="lg" 
                   variant="outlined"
                   @click="goToStock(item.ticker)"
@@ -320,7 +320,7 @@
             </div>
             <v-row v-if="strategyNotes.length > 0">
               <v-col v-for="note in strategyNotes" :key="note.id" cols="12">
-                <v-card class="custom-card pa-4" rounded="lg" variant="outlined">
+                <v-card class="transparent-card pa-4" rounded="lg" variant="outlined">
                   <div class="d-flex justify-space-between align-center mb-2">
                     <h4 class="text-white font-weight-bold">{{ note.title }}</h4>
                     <div>
@@ -441,7 +441,7 @@ import dayjs from 'dayjs'
 
 const router = useRouter()
 
-// =================== State (병합) ===================
+// =================== State ===================
 const user = ref(null)
 const portfolio = ref(null)
 const holdings = ref([])
@@ -485,7 +485,6 @@ const displayedTransactions = computed(() => {
 
 // =================== Methods ===================
 
-// [데이터 로드] Code 2의 로깅 + Code 1의 Pagination 대응 병합
 const loadAllData = async () => {
   loading.value = true
   error.value = null
@@ -506,10 +505,8 @@ const loadAllData = async () => {
     transactions.value = txRes.data
     myPosts.value = postsRes.data
     
-    // 닉네임 폼 초기화
     editForm.value = { nickname: user.value.nickname, email: user.value.email, password: '' }
 
-    // [선택적 데이터 로드] Pagination 대응 (results || data)
     try {
       const watchlistRes = await mypageAPI.getWatchlist()
       watchlist.value = watchlistRes.data.results || watchlistRes.data
@@ -529,7 +526,6 @@ const loadAllData = async () => {
   }
 }
 
-// [팔로우 로직] Code 1의 기능 유지
 const loadFollowers = async () => {
   try {
     const res = await mypageAPI.getFollowers()
@@ -548,7 +544,6 @@ const loadFollowing = async () => {
 
 const toggleFollow = async (targetUserId) => {
   try {
-    // API 명세에 따라 mypageAPI.toggleFollow()가 있다면 그것을 사용하고, 없다면 fetch 사용
     const res = await fetch(`/api/users/${targetUserId}/follow/`, {
       method: 'POST',
       headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' }
@@ -556,7 +551,6 @@ const toggleFollow = async (targetUserId) => {
     
     if (res.ok) {
       const data = await res.json()
-      // UI 즉시 반영 로직
       if (showFollowingModal.value && !data.is_following) {
         following.value = following.value.filter(u => u.id !== targetUserId)
       }
@@ -569,7 +563,6 @@ const toggleFollow = async (targetUserId) => {
   } catch (e) { alert('처리 실패') }
 }
 
-// [공통 유틸리티]
 const getCookie = (name) => {
   let cookieValue = null
   if (document.cookie && document.cookie !== '') {
@@ -585,7 +578,6 @@ const getCookie = (name) => {
   return cookieValue
 }
 
-// [회원정보/메모/이동 로직]
 const openEditDialog = () => { showEditModal.value = true }
 const updateProfile = async () => {
   try {
@@ -637,7 +629,6 @@ const closeNoteModal = () => { showNoteModal.value = false; editingNote.value = 
 const goToStock = (ticker) => router.push(`/stock/${ticker}`)
 const goToPost = (postId) => router.push({ name: 'community-detail', params: { id: postId } })
 
-// [포맷터]
 const formatPrice = (val) => val?.toLocaleString() || '0'
 const formatDate = (date) => dayjs(date).format('YYYY.MM.DD HH:mm')
 const getColor = (val) => {
@@ -650,11 +641,20 @@ onMounted(loadAllData)
 </script>
 
 <style scoped>
+/* 팝업(Dialog) 전용 카드 스타일: 불투명 유지 */
 .custom-card {
-  background-color: #20202008 !important;
+  background-color: #202020 !important;
   border-color: #524f4fff !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }
+
+/* 메인 대시보드 카드 스타일: 배경 투명 */
+.transparent-card {
+  background-color: transparent !important;
+  border-color: #524f4fff !important;
+  box-shadow: none !important;
+}
+
 .border-subtle { border: 2px solid #333; }
 .border-bottom { border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .custom-table { background: transparent !important; }
@@ -663,7 +663,6 @@ onMounted(loadAllData)
 .gap-4 { gap: 1rem; }
 .gap-3 { gap: 0.75rem; }
 
-/* 팔로우 버튼 디자인 */
 .follow-stat-btn {
   background: none; border: none; cursor: pointer; display: flex;
   flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px;
@@ -671,13 +670,12 @@ onMounted(loadAllData)
 }
 .follow-stat-btn:hover { background: rgba(255, 255, 255, 0.05); }
 
-/* 관심종목 카드 디자인 */
 .watchlist-card {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 .watchlist-card:hover {
   transform: translateY(-5px);
-  background: #f8efef0b !important;
+  background: rgba(27, 26, 26, 0.4) !important;
   border-color: #2563eb !important;
 }
 .user-item { padding: 12px; border-radius: 8px; transition: background 0.2s; }
