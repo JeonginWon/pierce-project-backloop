@@ -779,61 +779,48 @@ class HistoricalNewsViewSet(viewsets.ModelViewSet):
             distance=CosineDistance('body_embedding_vector', vec)
         ).order_by('distance')[:5]
         return Response(self.get_serializer(results, many=True).data)
-
 class LatestNewsViewSet(viewsets.ModelViewSet):
     queryset = LatestNews.objects.all()
     serializer_class = LatestNewsSerializer
     permission_classes = [AllowAny] 
 
     def create(self, request, *args, **kwargs):
-        # 👇 URL 기반 중복 체크 (제목보다 확실함)
         url = request.data.get('url')
         
-        # URL이 있고 이미 존재하면 스킵
         if url and LatestNews.objects.filter(url=url).exists():
             print(f"✋ 중복 뉴스 스킵 (URL): {url}")
-            # 201로 반환 (Airflow가 성공으로 인식)
             return Response(
                 {"message": "Skipped (Duplicate)", "url": url}, 
-                status=status.HTTP_201_CREATED  # 👈 201로 변경!
+                status=status.HTTP_201_CREATED
             )
         
-        # 중복이 아니면 원래대로 저장 진행
         return super().create(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
-        # 1. 기본 쿼리셋
-        queryset = self.queryset.all()
+        # 🆕 이미지가 있는 뉴스만 필터링
+        queryset = self.queryset.exclude(image_url__isnull=True).exclude(image_url='')
         
-        # 2. 파라미터 받기
         sort_by = request.query_params.get('sort', 'latest')
         search_query = request.query_params.get('search', '')
 
-        # 3. 정렬 로직 분기
         if sort_by == 'similarity':
             if search_query:
-                # [CASE A] 검색어 있음 -> '의미'가 비슷한 뉴스 찾기 (Semantic Search)
                 vector = get_embedding(search_query)
                 if vector:
                     queryset = queryset.annotate(
                         distance=CosineDistance('body_embedding_vector', vector)
                     ).order_by('distance')
                 else:
-                    # 임베딩 실패 시 최신순으로 Fallback
                     queryset = queryset.order_by('-news_collection_date')
             else:
-                # [CASE B] 검색어 없음 -> '역사가 반복되는' 뉴스 찾기 (Pattern Matching)
                 queryset = queryset.order_by('-max_similarity_score')
 
         elif sort_by == 'popular':
-            # [CASE C] 인기순 (조회수)
             queryset = queryset.order_by('-view_count')
 
         else:
-            # [CASE D] 최신순 (기본값)
             queryset = queryset.order_by('-news_collection_date')
 
-        # 4. 키워드 필터링 (유사도 정렬이 아닐 때만 적용)
         if search_query and sort_by != 'similarity':
             queryset = queryset.filter(
                 Q(title__icontains=search_query) | 
@@ -841,7 +828,6 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
                 Q(company_name__icontains=search_query)
             )
 
-        # 5. 페이지네이션 처리
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -849,11 +835,24 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-    # 🔎 Retrieve(상세 조회)를 위해 get_queryset은 기본 상태 유지 (혹은 필요 시 삭제 가능)
-    def get_queryset(self):
-        return LatestNews.objects.all().order_by('-news_collection_date')
 
-    # (기존 similar_historical_news, search 액션 유지)
+    def get_queryset(self):
+        # 🆕 기본 쿼리셋에도 이미지 필터 적용
+        return LatestNews.objects.exclude(
+            image_url__isnull=True
+        ).exclude(
+            image_url=''
+        ).order_by('-news_collection_date')
+
+    @action(detail=True, methods=['post'], url_path='increment-view')
+    def increment_view(self, request, pk=None):
+        """뉴스 조회수 증가"""
+        news = self.get_object()
+        news.view_count = F('view_count') + 1
+        news.save(update_fields=['view_count'])
+        news.refresh_from_db()
+        return Response({'view_count': news.view_count}, status=200)
+
     @action(detail=True, methods=['get'], url_path='similar_historical')
     def similar_historical_news(self, request, pk=None):
         current_news = self.get_object()
@@ -908,36 +907,30 @@ class LatestNewsViewSet(viewsets.ModelViewSet):
         if not query_text: return Response({"error": "query 필요"}, status=400)
         vec = get_embedding(query_text)
         if not vec: return Response({"error": "임베딩 실패"}, status=500)
-        results = LatestNews.objects.annotate(
+        
+        # 🆕 검색 결과에도 이미지 필터 적용
+        results = LatestNews.objects.exclude(
+            image_url__isnull=True
+        ).exclude(
+            image_url=''
+        ).annotate(
             distance=CosineDistance('body_embedding_vector', vec)
         ).order_by('distance')[:5]
+        
         return Response(self.get_serializer(results, many=True).data)
 
     def perform_create(self, serializer):
         text = serializer.validated_data.get('body')
         
-        # 1. 임베딩 생성 및 저장
         if text:
             vector = get_embedding(text)
             if vector:
-                # save()는 저장된 객체(instance)를 반환함
                 instance = serializer.save(body_embedding_vector=vector)
-                
-                # 2. 👇 [핵심] 저장 직후 유사도 점수 계산 함수 호출!
                 update_similarity_score(instance)
             else:
                 serializer.save()
         else:
             serializer.save()
-        
-    @action(detail=True, methods=['post'], url_path='increment-view')
-    def increment_view(self, request, pk=None):
-        """뉴스 조회수 증가"""
-        news = self.get_object()
-        news.view_count = F('view_count') + 1
-        news.save(update_fields=['view_count'])
-        news.refresh_from_db()
-        return Response({'view_count': news.view_count}, status=200)
 # ========================================================
 # 4. MyPage ViewSets
 # ========================================================

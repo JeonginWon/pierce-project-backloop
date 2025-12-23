@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -10,6 +10,7 @@ dayjs.extend(relativeTime)
 dayjs.locale('ko')
 
 const router = useRouter()
+const route = useRoute()
 
 // --- 1. 상태 관리 ---
 const newsItems = ref([])       
@@ -20,6 +21,38 @@ const totalPages = ref(1)
 
 const CATEGORIES = ['통합뉴스', '인기뉴스', '최신뉴스', '유사도순']
 const activeCategory = ref('통합뉴스')
+
+// 🆕 URL에서 상태 복원하는 함수
+const restoreStateFromURL = () => {
+  // 카테고리 복원
+  const urlCategory = route.query.category
+  if (urlCategory && CATEGORIES.includes(urlCategory)) {
+    activeCategory.value = urlCategory
+  }
+  
+  // 검색어 복원
+  const urlSearch = route.query.search
+  if (urlSearch) {
+    searchQuery.value = urlSearch
+  }
+  
+  // 페이지 복원
+  const urlPage = route.query.page
+  if (urlPage) {
+    page.value = parseInt(urlPage)
+  }
+}
+
+// 🆕 URL 업데이트 함수
+const updateURL = () => {
+  router.replace({
+    query: {
+      category: activeCategory.value,
+      search: searchQuery.value || undefined,
+      page: page.value > 1 ? page.value : undefined
+    }
+  })
+}
 
 // --- 2. API 통신 ---
 const fetchNews = async () => {
@@ -54,7 +87,7 @@ const fetchNews = async () => {
   }
 }
 
-// 🆕 조회수 증가 함수
+// 조회수 증가 함수
 const incrementViewCount = async (newsId) => {
   try {
     await axios.post(`http://localhost:8000/api/latest-news/${newsId}/increment-view/`)
@@ -63,32 +96,35 @@ const incrementViewCount = async (newsId) => {
   }
 }
 
-// 🆕 뉴스 클릭 핸들러
+// 뉴스 클릭 핸들러
 const handleNewsClick = (news) => {
-  // 조회수 증가 (백그라운드 처리)
   incrementViewCount(news.id)
-  
-  // 즉시 상세 페이지로 이동
   router.push({ name: 'news-detail', params: { id: news.id } })
 }
 
 // --- 3. 이벤트 핸들러 ---
 onMounted(() => {
+  // 🆕 마운트 시 URL에서 상태 복원 후 데이터 로드
+  restoreStateFromURL()
   fetchNews()
 })
 
+// 🆕 페이지 변경 시 URL 업데이트 + 데이터 로드
 watch(page, () => {
+  updateURL()
   fetchNews()
 })
 
 const onSearch = () => {
   page.value = 1 
+  updateURL()  // 🆕 URL 업데이트
   fetchNews()
 }
 
 const selectCategory = (cat) => {
   activeCategory.value = cat
   page.value = 1
+  updateURL()  // 🆕 URL 업데이트
   fetchNews()
 }
 
