@@ -606,7 +606,7 @@ watch(() => route.params.id, () => {
 
 <style scoped>
 .custom-card {
-  background-color: #141414 !important;
+  background-color: #14141418 !important;
   border-color: #333 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
 }

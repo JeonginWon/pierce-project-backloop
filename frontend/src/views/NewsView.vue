@@ -298,7 +298,7 @@ const getSentimentText = (sentiment) => {
 
 <style scoped>
 .custom-card {
-  background-color: #141414 !important;
+  background-color: #14141428 !important;
   border-color: #333 !important;
   transition: all 0.2s ease-in-out;
 }

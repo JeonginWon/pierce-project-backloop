@@ -651,9 +651,9 @@ onMounted(loadAllData)
 
 <style scoped>
 .custom-card {
-  background-color: #141414 !important;
-  border-color: #333 !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  background-color: #20202008 !important;
+  border-color: #524f4fff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0) !important;
 }
 .border-subtle { border: 2px solid #333; }
 .border-bottom { border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
@@ -677,7 +677,7 @@ onMounted(loadAllData)
 }
 .watchlist-card:hover {
   transform: translateY(-5px);
-  background: #1e1e1e !important;
+  background: #f8efef0b !important;
   border-color: #2563eb !important;
 }
 .user-item { padding: 12px; border-radius: 8px; transition: background 0.2s; }

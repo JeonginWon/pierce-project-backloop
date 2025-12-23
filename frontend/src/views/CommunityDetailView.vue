@@ -378,7 +378,7 @@ onMounted(() => {
 }
 
 .detail-card {
-  background: #141414;
+  background: #14141408;
   padding: 32px;
   border-radius: 20px;
   border: 1px solid #222;

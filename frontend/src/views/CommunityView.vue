@@ -311,12 +311,12 @@ onMounted(fetchData)
 .write-btn:hover { background: #1d4ed8; transform: scale(1.05); }
 
 /* 🟡 게시글 카드 (개선) */
-.post-card { background: #141414; padding: 24px; border-radius: 20px; margin-bottom: 24px; border: 1px solid #222; cursor: pointer; transition: 0.2s; }
-.post-card:hover { border-color: #3b82f6; background: #1a1a1a; }
+.post-card { background: #14141409; padding: 24px; border-radius: 20px; margin-bottom: 24px; border: 1px solid #222; cursor: pointer; transition: 0.2s; }
+.post-card:hover { border-color: #3b82f6; background: #1a1a1a07; }
 
 .post-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
 .user-info-group { display: flex; align-items: center; gap: 12px; }
-.avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #333; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: #333333; }
 .user-detail { display: flex; flex-direction: column; gap: 2px; }
 .name-row { display: flex; align-items: center; gap: 8px; }
 .nickname { font-weight: bold; font-size: 15px; }
@@ -325,7 +325,7 @@ onMounted(fetchData)
 .profit-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); }
 .profit-badge.red { color: #ff4d4d; background: rgba(255, 77, 77, 0.1); }
 .profit-badge.blue { color: #4d94ff; background: rgba(77, 148, 255, 0.1); }
-.profit-badge.grey { color: #888; background: rgba(136, 136, 136, 0.1); }
+.profit-badge.grey { color: #4a4a4aff; background: rgba(136, 136, 136, 0.1); }
 
 .post-date { font-size: 12px; color: #6b7280; }
 .ticker-badge { font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; padding: 4px 10px; border-radius: 8px; font-weight: 600; }
@@ -342,7 +342,7 @@ onMounted(fetchData)
 .action-btn.active { color: #ef4444; font-weight: bold; }
 
 /* 🟢 사이드바 랭킹 */
-.rank-card { background: #141414; padding: 24px; border-radius: 20px; position: sticky; top: 100px; border: 1px solid #222; }
+.rank-card { background: #14141489; padding: 24px; border-radius: 20px; position: sticky; top: 100px; border: 1px solid #222; }
 .rank-card h3 { margin: 0 0 20px 0; font-size: 18px; }
 .rank-list { list-style: none; padding: 0; }
 .rank-item { margin-bottom: 18px; }

@@ -236,7 +236,7 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
 
 /* 지수 영역 */
 .market-header { display: flex; gap: 15px; padding: 20px; max-width: 1200px; margin: 0 auto; border-bottom: 1px solid #1a1a1b; }
-.index-card { background: #1a1a1b; padding: 15px 25px; border-radius: 16px; flex: 1; border: 1px solid #222; }
+.index-card { background: #1a1a1b05; padding: 15px 25px; border-radius: 16px; flex: 1; border: 1px solid #222; }
 .index-name { color: #919193; font-size: 14px; font-weight: bold; }
 .index-val { font-size: 22px; font-weight: 800; display: block; margin-top: 4px; }
 .index-rate { font-size: 14px; font-weight: bold; }
@@ -246,8 +246,8 @@ onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
 
 /* 인기 종목 그리드 */
 .popular-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 12px; margin-bottom: 40px; }
-.pop-card { background: #1a1a1b; padding: 16px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #222; }
-.pop-card:hover { background: #252526; }
+.pop-card { background: #1a1a1b01; padding: 16px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; border: 1px solid #222; }
+.pop-card:hover { background: #25252602; }
 .pop-left { display: flex; align-items: center; gap: 12px; }
 .rank { font-size: 15px; font-weight: bold; color: #666; width: 15px; }
 .stock-logo-fixed { width: 44px; height: 44px; border-radius: 50%; }
