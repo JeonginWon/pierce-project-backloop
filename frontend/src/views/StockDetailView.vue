@@ -899,11 +899,17 @@ onUnmounted(() => { if (polling) clearInterval(polling) })
 </template>
 
 <style scoped>
-.dashboard-detail { background: #000; min-height: 100vh; color: #fff; padding-bottom: 60px; font-family: 'Pretendard', sans-serif; }
 
+.dashboard-detail { 
+  background: #0a0a0b; /* 또는 원하는 회색 톤 */
+  min-height: 100vh; 
+  color: #fff; 
+  padding-bottom: 60px; 
+  font-family: 'Pretendard', sans-serif; 
+}
 /* Hero Header */
 .detail-header-hero { position: relative; height: 400px; display: flex; align-items: flex-end; overflow: hidden; }
-.hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.35); }
+.hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(1); }
 .hero-gradient { position: absolute; inset: 0; background: linear-gradient(to top, #000 0%, transparent 100%); }
 .hero-content { position: relative; z-index: 10; max-width: 1200px; margin: 0 auto; width: 100%; padding: 0 20px 40px; }
 .hero-top-nav { margin-bottom: 40px; }
@@ -935,8 +941,16 @@ onUnmounted(() => { if (polling) clearInterval(polling) })
 
 /* 메인 그리드 */
 .main-grid { max-width: 1200px; margin: 40px auto 0; display: grid; grid-template-columns: 8.5fr 3.5fr; gap: 30px; padding: 0 20px; }
-.shadow-card { background: #111; border-radius: 28px; padding: 30px; border: 1px solid #222; }
-
+.shadow-card { 
+  background: #111; 
+  border-radius: 28px; 
+  padding: 30px; 
+  border: 1px solid #222; 
+}
+.chart-section.shadow-card {
+  background: #000000; /* 또는 투명(transparent)하게 */
+  border: none;
+}
 /* 차트 섹션 헤더 */
 .card-header { 
   display: flex; 
@@ -1047,7 +1061,7 @@ onUnmounted(() => { if (polling) clearInterval(polling) })
 
 .volume-label {
   font-size: 13px;
-  color: #999;
+  color: #ffffff;
   font-weight: 600;
 }
 

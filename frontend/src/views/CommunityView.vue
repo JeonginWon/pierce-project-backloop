@@ -249,47 +249,78 @@ onMounted(fetchData)
       </div>
     </div>
 
-    <div v-if="selectedPost" class="modal-overlay" @click.self="selectedPost = null">
-      <div class="modal-content detail-modal">
-        <div class="detail-header">
-           <div class="user-info clickable-wrapper" @click.stop="goToUserProfile(selectedPost.author.id)">
-            <img :src="selectedPost.author.profile_image_url || '/default-profile.png'" class="avatar" />
-            <div class="user-detail">
-              <div class="name-row">
-                <span class="nickname">{{ selectedPost.author.nickname }}</span>
-                <span class="profit-badge" :class="getReturnColor(selectedPost.author.realized_profit)">
-                  {{ formatPrice(selectedPost.author.realized_profit) }}원
-                </span>
+    <!-- 📌 새로운 마이페이지 스타일 모달 -->
+    <div v-if="selectedPost" class="modal-overlay-new" @click.self="selectedPost = null">
+      <div class="modal-card-new">
+        <div class="modal-inner">
+          
+          <!-- 헤더: 작성자 정보 + 닫기 버튼 -->
+          <div class="modal-header-new">
+            <div class="user-info-btn" @click.stop="goToUserProfile(selectedPost.author.id)">
+              <img :src="selectedPost.author.profile_image_url || '/default-profile.png'" class="avatar-new" />
+              <div class="user-text-new">
+                <div class="nickname-new">{{ selectedPost.author.nickname }}</div>
+                <div class="meta-row-new">
+                  <span class="profit-badge-new" :class="getReturnColor(selectedPost.author.realized_profit)">
+                    {{ formatPrice(selectedPost.author.realized_profit) }}원
+                  </span>
+                  <span class="date-new">{{ new Date(selectedPost.created_at).toLocaleString() }}</span>
+                </div>
               </div>
-              <div class="post-date">{{ new Date(selectedPost.created_at).toLocaleString() }}</div>
+            </div>
+            <button class="close-btn-new" @click="selectedPost = null">✕</button>
+          </div>
+
+          <!-- 제목 -->
+          <h2 class="post-title-new">
+            <span v-if="selectedPost.ticker" class="ticker-badge-new">{{ selectedPost.ticker }}</span>
+            {{ selectedPost.title }}
+          </h2>
+
+          <!-- 본문 -->
+          <div class="post-body-new">
+            <p class="post-content-new">{{ selectedPost.content }}</p>
+            <img v-if="selectedPost.image_url" :src="selectedPost.image_url" class="post-image-new" />
+          </div>
+
+          <!-- 좋아요 버튼 -->
+          <div class="actions-row-new">
+            <button class="like-btn-new" :class="{ active: selectedPost.is_liked }" @click.stop="toggleLike(selectedPost)">
+              <span class="heart-icon">{{ selectedPost.is_liked ? '❤️' : '🤍' }}</span>
+              <span>좋아요 {{ selectedPost.like_count }}</span>
+            </button>
+          </div>
+
+          <div class="divider-new"></div>
+
+          <!-- 댓글 섹션 -->
+          <div class="comments-section-new">
+            <h3 class="comments-title-new">💬 댓글 {{ comments.length }}</h3>
+            
+            <div class="comment-list-new">
+              <div v-for="cmt in comments" :key="cmt.id" class="comment-card-new">
+                <div class="comment-author-new" @click.stop="goToUserProfile(cmt.author.id)">
+                  {{ cmt.author.nickname }}
+                </div>
+                <div class="comment-text-new">{{ cmt.content }}</div>
+              </div>
+              <div v-if="comments.length === 0" class="no-comments-new">
+                💭 첫 댓글을 남겨보세요!
+              </div>
+            </div>
+
+            <div class="comment-input-wrapper-new">
+              <input 
+                v-model="newComment" 
+                type="text" 
+                placeholder="댓글을 남겨보세요..." 
+                class="comment-input-new"
+                @keyup.enter="addComment"
+              />
+              <button class="comment-submit-new" @click="addComment">등록</button>
             </div>
           </div>
-        </div>
-        <h2 class="detail-title">{{ selectedPost.title }}</h2>
-        <div class="detail-body">
-           <p>{{ selectedPost.content }}</p>
-           <img v-if="selectedPost.image_url" :src="selectedPost.image_url" class="detail-image" />
-        </div>
-        <div class="detail-actions">
-           <button class="action-btn" :class="{ active: selectedPost.is_liked }" @click="toggleLike(selectedPost)">
-             {{ selectedPost.is_liked ? '❤️' : '🤍' }} 좋아요 {{ selectedPost.like_count }}
-           </button>
-        </div>
-        <hr class="divider"/>
-        <div class="comments-section">
-          <h3>댓글 {{ comments.length }}</h3>
-          <div class="comment-list">
-            <div v-for="cmt in comments" :key="cmt.id" class="comment-item">
-              <span class="cmt-author clickable-text" @click.stop="goToUserProfile(cmt.author.id)">
-                {{ cmt.author.nickname }}
-              </span>
-              <span class="cmt-content">{{ cmt.content }}</span>
-            </div>
-          </div>
-          <div class="comment-input-area">
-            <input v-model="newComment" type="text" placeholder="댓글을 남겨보세요..." @keyup.enter="addComment"/>
-            <button @click="addComment">등록</button>
-          </div>
+
         </div>
       </div>
     </div>
@@ -354,11 +385,10 @@ onMounted(fetchData)
 .rank-rate { font-size: 12px; font-weight: bold; }
 .rank-amount { font-size: 12px; color: #9ca3af; }
 
-/* 🔵 모달 및 기타 */
+/* 🔵 글쓰기 모달 (기존 유지) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(8px); }
 .modal-content { background: #1c1c1e; padding: 32px; border-radius: 24px; color: #f5f5f7; border: 1px solid #333; max-height: 90vh; overflow-y: auto; }
 .write-modal { width: 90%; max-width: 600px; }
-.detail-modal { width: 90%; max-width: 700px; }
 
 .input-full, .textarea-full { width: 100%; background: #000; border: 1px solid #333; color: white; padding: 14px; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box; }
 .textarea-full { height: 200px; resize: none; }
@@ -371,4 +401,349 @@ onMounted(fetchData)
 .red { color: #ff4d4d !important; } 
 .blue { color: #4d94ff !important; }
 .grey { color: #888 !important; }
+
+/* ========================================
+   🎨 새로운 마이페이지 스타일 모달
+   ======================================== */
+
+.modal-overlay-new {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(12px);
+  padding: 20px;
+}
+
+.modal-card-new {
+  background: #1a1a1a;
+  border: 1px solid #524f4f;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.modal-inner {
+  padding: 32px;
+}
+
+/* 헤더 */
+.modal-header-new {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.user-info-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.user-info-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.avatar-new {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-text-new {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nickname-new {
+  font-weight: bold;
+  font-size: 16px;
+  color: white;
+}
+
+.meta-row-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.profit-badge-new {
+  font-weight: bold;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.profit-badge-new.red {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+}
+
+.profit-badge-new.blue {
+  color: #4d94ff;
+  background: rgba(77, 148, 255, 0.1);
+}
+
+.profit-badge-new.grey {
+  color: #888;
+  background: rgba(136, 136, 136, 0.1);
+}
+
+.date-new {
+  color: #9ca3af;
+}
+
+.close-btn-new {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #9ca3af;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.close-btn-new:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* 제목 */
+.post-title-new {
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  margin: 0 0 20px 0;
+  line-height: 1.4;
+}
+
+.ticker-badge-new {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+/* 본문 */
+.post-body-new {
+  margin-bottom: 24px;
+}
+
+.post-content-new {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #e5e7eb;
+  white-space: pre-wrap;
+  margin: 0 0 20px 0;
+}
+
+.post-image-new {
+  width: 100%;
+  border-radius: 16px;
+  margin-top: 20px;
+  border: 1px solid #333;
+}
+
+/* 좋아요 버튼 */
+.actions-row-new {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.like-btn-new {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #9ca3af;
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.like-btn-new:hover {
+  background: #374151;
+}
+
+.like-btn-new.active {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.heart-icon {
+  font-size: 18px;
+}
+
+/* 구분선 */
+.divider-new {
+  border: 0;
+  border-top: 1px solid #333;
+  margin: 24px 0;
+}
+
+/* 댓글 섹션 */
+.comments-section-new {
+  margin-top: 24px;
+}
+
+.comments-title-new {
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+  margin: 0 0 16px 0;
+}
+
+.comment-list-new {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+/* 스크롤바 스타일 */
+.comment-list-new::-webkit-scrollbar {
+  width: 6px;
+}
+
+.comment-list-new::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.comment-list-new::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.comment-list-new::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.comment-card-new {
+  background: #1f2937;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  border: 1px solid #2d3748;
+  transition: all 0.2s;
+}
+
+.comment-card-new:hover {
+  background: #2d3748;
+}
+
+.comment-author-new {
+  font-weight: bold;
+  color: #60a5fa;
+  font-size: 14px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.comment-author-new:hover {
+  opacity: 0.8;
+}
+
+.comment-text-new {
+  color: #e5e7eb;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.no-comments-new {
+  text-align: center;
+  color: #6b7280;
+  padding: 40px 20px;
+  font-size: 15px;
+}
+
+/* 댓글 입력 */
+.comment-input-wrapper-new {
+  display: flex;
+  gap: 10px;
+  background: #1f2937;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid #333;
+}
+
+.comment-input-new {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px 14px;
+  font-size: 15px;
+  outline: none;
+}
+
+.comment-input-new::placeholder {
+  color: #6b7280;
+}
+
+.comment-submit-new {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.comment-submit-new:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .modal-card-new {
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
+  .modal-inner {
+    padding: 20px;
+  }
+
+  .post-title-new {
+    font-size: 20px;
+  }
+
+  .avatar-new {
+    width: 40px;
+    height: 40px;
+  }
+}
 </style>
