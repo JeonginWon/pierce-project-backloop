@@ -438,7 +438,7 @@ const deletePost = async () => {
 
     if (res.ok || res.status === 204) {
       alert('삭제되었습니다.')
-      router.push('/community')
+      router.push('/my')  // ✅ 마이페이지로 리다이렉트
     } else {
       alert('삭제에 실패했습니다.')
     }
