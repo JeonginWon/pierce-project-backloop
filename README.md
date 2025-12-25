@@ -10,8 +10,6 @@
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.0+-4FC08D.svg)](https://vuejs.org/)
 [![Airflow](https://img.shields.io/badge/Airflow-2.8+-017CEE.svg)](https://airflow.apache.org/)
 
-###
-![아키텍쳐](./image/architecture.png)
 
 ## 🎯 프로젝트 개요
 
@@ -53,6 +51,9 @@ Pierce는 **AI 기반 뉴스 분석**과 **RAG(Retrieval-Augmented Generation)**
 - **Docker** - 컨테이너 기반 배포
 - **Nginx** (예정) - 리버스 프록시 및 정적 파일 서빙
 - **GitHub Actions** (예정) - CI/CD 파이프라인
+
+###
+![아키텍쳐](./image/architecture.png)
 
 ## 📁 프로젝트 구조
 
@@ -234,7 +235,7 @@ Airflow DAG 관리:
 ## 👥 팀원
 
 - **[JeonginWon](https://github.com/JeonginWon)** - Backend & AI & Frontend & Data & Design
-- **[youn-sun](https://github.com/youn-sun)** - AI & & Data & Backend & Frontend & System
+- **[youn-sun](https://github.com/youn-sun)** - AI & Data & Backend & Frontend & System
 
 ---
 
